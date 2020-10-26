@@ -1,1 +1,1 @@
-Image to GPS with image retreival
+Thesis: Image to GPS with image retreival
