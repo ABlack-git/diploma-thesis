@@ -1,0 +1,6 @@
+# @package _group_
+flickr:
+  key: ??? # do not commit key to repository
+  secret: ??? # do not commit key to repository
+mapillary:
+  clientId: ??? # do not commit key to repository

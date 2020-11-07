@@ -1,0 +1,12 @@
+name: im2gps
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.8.2
+  - pip=20.0.2
+  - requests=2.24.0
+  - matplotlib=3.3.2
+  - pip:
+      - flickrapi == 2.4.0
+      - hydra-core == 1.0.3

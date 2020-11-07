@@ -1,0 +1,3 @@
+defaults:
+  - creds: example
+  - filters: filters
