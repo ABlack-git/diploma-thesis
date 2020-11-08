@@ -27,6 +27,7 @@ class FlickFilter:
     woeid: int = MISSING
     media: str = MISSING
     has_geo: int = MISSING
+    accuracy: int = MISSING
 
 
 @dataclass
@@ -42,7 +43,13 @@ class MongoConfig:
 
 
 @dataclass
+class AppConfig:
+    load_checkpoint: bool = MISSING
+
+
+@dataclass
 class DSConfig:
     creds: CredsConfig = MISSING
     filters: FilterConfig = MISSING
     db: MongoConfig = MISSING
+    app: AppConfig = MISSING

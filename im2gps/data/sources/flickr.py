@@ -3,11 +3,12 @@ import flickrapi
 import logging
 import datetime as dt
 
-from mongoengine.errors import NotUniqueError
-
+from im2gps.data.sources.dtos import PhotoDto
 from im2gps.configutils import ConfigRepo
 from im2gps.data.sources.config import DSConfig
-from im2gps.data.sources.repo import FlickrPhoto
+from im2gps.data.sources.repo import FlickrPhoto, FlickrCheckpoint
+
+from typing import Generator
 
 log = logging.getLogger(__name__)
 
@@ -21,30 +22,39 @@ class FlickerClient:
     which solves the mentioned problem by splitting requests by date range.  
     """
 
-    def __init__(self):
-        cr = ConfigRepo()
-        cfg: DSConfig = cr.get(DSConfig.__name__)
+    def __init__(self, cfg: DSConfig):
         self.flickr = flickrapi.FlickrAPI(api_key=cfg.creds.flickr.key, secret=cfg.creds.flickr.secret,
                                           format='parsed-json')
 
-    def search_photos(self, start_date: dt.date = dt.date(2005, 1, 1), max_date: dt.date = dt.date.today(), **kwargs):
+    def search_photos(self, start_date: dt.date = None,
+                      max_date: dt.date = None,
+                      interval_width: dt.timedelta = None,
+                      page: int = None,
+                      **kwargs) -> Generator[PhotoDto, None, None]:
         if 'min_upload_date' in kwargs or 'max_upload_date' in kwargs:
             raise ValueError('min_upload_date or max_upload_date should not be specified')
+
+        # setup default args
+        start_date = dt.date(2005, 1, 1) if start_date is None else start_date
+        max_date = dt.date.today() if max_date is None else max_date
+        interval_width = dt.timedelta(days=365) if interval_width is None else interval_width
+        page = 1 if page is None else page
+
         current_start = start_date
-        interval_width = dt.timedelta(days=365)
+        i_width = interval_width
         # loop over dates
         while current_start < max_date:
-            interval_width = self._find_date_range(start_date=current_start,
-                                                   interval_width=interval_width,
-                                                   max_allowed_date=max_date,
-                                                   **kwargs)
+            i_width = self._find_date_range(start_date=current_start,
+                                            interval_width=i_width,
+                                            max_allowed_date=max_date,
+                                            **kwargs)
             min_upload_date = current_start.strftime(self._DATE_FORMAT)
-            max_upload_date = (current_start + interval_width).strftime(self._DATE_FORMAT)
+            max_upload_date = (current_start + i_width).strftime(self._DATE_FORMAT)
             # loop over pages
-            page = 1
+            current_page = page
             max_page = sys.maxsize
-            while page <= max_page:
-                result = self.flickr.photos.search(page=page, min_upload_date=min_upload_date,
+            while current_page <= max_page:
+                result = self.flickr.photos.search(page=current_page, min_upload_date=min_upload_date,
                                                    max_upload_date=max_upload_date, **kwargs)
                 log.debug(f"Page: {result['photos']['page']}, pages: {result['photos']['pages']},"
                           f"perpage: {result['photos']['perpage']}, total: {result['photos']['total']}")
@@ -52,11 +62,10 @@ class FlickerClient:
                     max_page = int(result['photos']['pages'])
                 # loop over each photo on a page
                 for photo in result['photos']['photo']:
-                    # TODO: wrap photo in dataclass with metadata
-                    yield photo
+                    yield PhotoDto(photo, current_page, int(result['photos']['perpage']), current_start, i_width)
 
-                page = page + 1
-            current_start = current_start + interval_width + dt.timedelta(days=1)
+                current_page = current_page + 1
+            current_start = current_start + i_width + dt.timedelta(days=1)
 
     def _find_date_range(self, start_date: dt.date,
                          interval_width: dt.timedelta,
@@ -99,19 +108,39 @@ class FlickerClient:
         raise Exception("Could not find suitable date range")
 
 
-def collect_photos():
-    flickr_client = FlickerClient()
+def collect_photos_metadata():
     cr = ConfigRepo()
     cfg: DSConfig = cr.get(DSConfig.__name__)
-    for photo in flickr_client.search_photos(
+    flickr_client = FlickerClient(cfg)
+
+    checkpoint = None
+    if cfg.app.load_checkpoint:
+        log.info("Loading checkpoint...")
+        checkpoint = FlickrCheckpoint.load_latest()
+        if checkpoint is not None:
+            log.info(f"Found checkpoint. start date: {checkpoint.start_date}, "
+                     f"end date: {checkpoint.start_date + dt.timedelta(checkpoint.interval_width)}, "
+                     f"page: {checkpoint.page}")
+        else:
+            log.info(f"Checkpoint doesn't exist in database. Starting download from the beginning...")
+    else:
+        log.info("Starting download from the beginning...")
+
+    for i, photoDto in enumerate(flickr_client.search_photos(
+            start_date=None if checkpoint is None else checkpoint.start_date,
+            interval_width=None if checkpoint is None else dt.timedelta(days=checkpoint.interval_width),
+            page=None if checkpoint is None else checkpoint.page,
             has_geo=cfg.filters.flickr.has_geo,
             tags=",".join(cfg.filters.flickr.tags),
             media=cfg.filters.flickr.media,
             extras='geo,tags,owner_name,date_upload,date_taken,url_m,url_c,url_l,url_o',
+            accuracy=cfg.filters.flickr.accuracy,
             tag_mode='bool'
-    ):
-        flickr_photo: FlickrPhoto = FlickrPhoto.from_dict(photo)
-        try:
-            flickr_photo.save(force_insert=True)
-        except NotUniqueError as e:
-            log.warning(f"Photo with id {flickr_photo.photo_id} already exists")
+    )):
+        flickr_photo: FlickrPhoto = FlickrPhoto.from_dict(photoDto.photo)
+        flickr_photo.save()
+        if (i + 1) % 500 == 0:
+            log.info(f"Saving checkpoint. page: {photoDto.page}, start date: {photoDto.start_date}, "
+                     f"end date: {photoDto.start_date + photoDto.interval_width}, per page: {photoDto.per_page}")
+            chkpt = FlickrCheckpoint.from_dto(photoDto)
+            chkpt.save()

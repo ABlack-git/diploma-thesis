@@ -2,3 +2,5 @@ defaults:
   - creds: example
   - filters: filters
   - db: local
+app:
+  load_checkpoint: True

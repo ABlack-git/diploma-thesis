@@ -1,7 +1,8 @@
 import datetime as dt
 
+from im2gps.data.sources.dtos import PhotoDto
 from mongoengine import Document, EmbeddedDocument, EmbeddedDocumentField, LongField, StringField, DateTimeField, \
-    ListField, IntField, PointField, MapField
+    ListField, IntField, PointField, MapField, DateField
 
 
 class GeoInfo(EmbeddedDocument):
@@ -61,3 +62,22 @@ class FlickrPhoto(Document):
                                  width=data[f'width_{url_type}'])
                 flickr_photo_dict['urls'][url_type] = img_url
         return FlickrPhoto(**flickr_photo_dict)
+
+
+class FlickrCheckpoint(Document):
+    page = IntField(required=True)
+    per_page = IntField(required=True)
+    start_date = DateField(required=True)
+    interval_width = IntField(required=True)
+    created_on = DateTimeField(required=True, default=dt.datetime.now)
+
+    meta = {'collection': 'flickr.checkpoint'}
+
+    @staticmethod
+    def from_dto(dto: PhotoDto):
+        return FlickrCheckpoint(page=dto.page, per_page=dto.per_page, start_date=dto.start_date,
+                                interval_width=dto.interval_width.days)
+
+    @classmethod
+    def load_latest(cls) -> 'FlickrCheckpoint':
+        return cls.objects.order_by('-created_on').first()

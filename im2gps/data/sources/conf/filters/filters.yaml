@@ -36,3 +36,4 @@ flickr:
   woeid: 23424810
   media: 'photos'
   has_geo: 1
+  accuracy: 16
