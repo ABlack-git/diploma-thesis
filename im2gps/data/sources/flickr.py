@@ -3,8 +3,11 @@ import flickrapi
 import logging
 import datetime as dt
 
+from mongoengine.errors import NotUniqueError
+
 from im2gps.configutils import ConfigRepo
 from im2gps.data.sources.config import DSConfig
+from im2gps.data.sources.repo import FlickrPhoto
 
 log = logging.getLogger(__name__)
 
@@ -14,7 +17,8 @@ class FlickerClient:
     _MIN_RESULTS = 3000
     _DATE_FORMAT = "%d-%m-%Y"
     """
-    Wrapper around flickrapi. Flickr photos.search request will return only first 4000 search results 
+    Flickr photos.search request will return only first 4000 search results. This class is a wrapper to flickrapi, 
+    which solves the mentioned problem by splitting requests by date range.  
     """
 
     def __init__(self):
@@ -36,12 +40,11 @@ class FlickerClient:
                                                    **kwargs)
             min_upload_date = current_start.strftime(self._DATE_FORMAT)
             max_upload_date = (current_start + interval_width).strftime(self._DATE_FORMAT)
-            log.debug(f"processing {min_upload_date}-{max_upload_date} interval")
             # loop over pages
             page = 1
             max_page = sys.maxsize
             while page <= max_page:
-                result = self.flickr.photos.search(per_page=300, page=page, min_upload_date=min_upload_date,
+                result = self.flickr.photos.search(page=page, min_upload_date=min_upload_date,
                                                    max_upload_date=max_upload_date, **kwargs)
                 log.debug(f"Page: {result['photos']['page']}, pages: {result['photos']['pages']},"
                           f"perpage: {result['photos']['perpage']}, total: {result['photos']['total']}")
@@ -49,6 +52,7 @@ class FlickerClient:
                     max_page = int(result['photos']['pages'])
                 # loop over each photo on a page
                 for photo in result['photos']['photo']:
+                    # TODO: wrap photo in dataclass with metadata
                     yield photo
 
                 page = page + 1
@@ -103,7 +107,11 @@ def collect_photos():
             has_geo=cfg.filters.flickr.has_geo,
             tags=",".join(cfg.filters.flickr.tags),
             media=cfg.filters.flickr.media,
-            extras='geo,tags,owner_name,date_upload,date_taken',
+            extras='geo,tags,owner_name,date_upload,date_taken,url_m,url_c,url_l,url_o',
             tag_mode='bool'
     ):
-        pass
+        flickr_photo: FlickrPhoto = FlickrPhoto.from_dict(photo)
+        try:
+            flickr_photo.save(force_insert=True)
+        except NotUniqueError as e:
+            log.warning(f"Photo with id {flickr_photo.photo_id} already exists")

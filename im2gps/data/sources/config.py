@@ -35,6 +35,14 @@ class FilterConfig:
 
 
 @dataclass
+class MongoConfig:
+    host: str = MISSING
+    port: int = MISSING
+    database: str = MISSING
+
+
+@dataclass
 class DSConfig:
     creds: CredsConfig = MISSING
     filters: FilterConfig = MISSING
+    db: MongoConfig = MISSING

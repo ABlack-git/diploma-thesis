@@ -1,3 +1,4 @@
 defaults:
   - creds: example
   - filters: filters
+  - db: local

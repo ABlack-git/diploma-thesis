@@ -1,0 +1,9 @@
+version: '3'
+services:
+  mongo:
+    container_name: im2gps-mongo
+    image: mongo
+    ports:
+      - 51998:27017
+    volumes:
+      - "~/.data/im2gps-mongo:/data/db"
