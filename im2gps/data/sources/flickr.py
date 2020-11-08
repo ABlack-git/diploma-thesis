@@ -56,7 +56,7 @@ class FlickerClient:
             while current_page <= max_page:
                 result = self.flickr.photos.search(page=current_page, min_upload_date=min_upload_date,
                                                    max_upload_date=max_upload_date, **kwargs)
-                log.debug(f"Page: {result['photos']['page']}, pages: {result['photos']['pages']},"
+                log.debug(f"page: {result['photos']['page']}, pages: {result['photos']['pages']},"
                           f"perpage: {result['photos']['perpage']}, total: {result['photos']['total']}")
                 if max_page == sys.maxsize:
                     max_page = int(result['photos']['pages'])
@@ -95,17 +95,20 @@ class FlickerClient:
             return max_date - start_date
         while min_date <= max_date:
             mid_date = min_date + (max_date - min_date) // 2
+            log.debug(f"Checking interval from {start_date} to {mid_date}")
             result = self.flickr.photos.search(min_upload_date=start_date.strftime(self._DATE_FORMAT),
                                                max_upload_date=mid_date.strftime(self._DATE_FORMAT),
                                                **kwargs)
             total = int(result['photos']['total'])
+            log.debug(f"min_date: {min_date}, max_date: {max_date}, mid_date: {mid_date}, number of photos: {total}")
             if self._MIN_RESULTS <= total <= self._MAX_RESULTS:
                 return mid_date - start_date
             elif total < self._MIN_RESULTS:
                 min_date = mid_date + dt.timedelta(days=1)
             else:  # total > self._MAX_RESULTS
                 max_date = mid_date - dt.timedelta(days=1)
-        raise Exception("Could not find suitable date range")
+        raise Exception(f"Could not find suitable date range. Total number of photos: {total}, min_date: {min_date},"
+                        f"max_date: {max_date}")
 
 
 def collect_photos_metadata():
