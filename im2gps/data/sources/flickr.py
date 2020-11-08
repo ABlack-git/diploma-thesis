@@ -65,6 +65,7 @@ class FlickerClient:
                     yield PhotoDto(photo, current_page, int(result['photos']['perpage']), current_start, i_width)
 
                 current_page = current_page + 1
+            page = 1
             current_start = current_start + i_width + dt.timedelta(days=1)
 
     def _find_date_range(self, start_date: dt.date,
