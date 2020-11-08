@@ -6,7 +6,6 @@ dependencies:
   - python=3.8.2
   - pip=20.0.2
   - requests=2.24.0
-  - matplotlib=3.3.2
   - mongoengine=0.20.0
   - pip:
       - flickrapi == 2.4.0
