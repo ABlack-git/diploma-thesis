@@ -2,11 +2,13 @@ import sys
 import flickrapi
 import logging
 import datetime as dt
+import time
 
 from im2gps.data.sources.dtos import PhotoDto, LoadDto
 from im2gps.configutils import ConfigRepo
 from im2gps.data.sources.config import DSConfig
 from im2gps.data.sources.repo import FlickrPhoto, FlickrCheckpoint
+from im2gps.data.sources.exceptions import FlickrClientError, DownloadError
 
 from typing import Generator
 
@@ -25,6 +27,7 @@ class FlickerClient:
     def __init__(self, cfg: DSConfig):
         self.flickr = flickrapi.FlickrAPI(api_key=cfg.creds.flickr.key, secret=cfg.creds.flickr.secret,
                                           format='parsed-json')
+        self.num_retries = 5
 
     def search_photos(self, start_date: dt.datetime = None,
                       max_date: dt.date = None,
@@ -54,8 +57,8 @@ class FlickerClient:
             current_page = page
             max_page = sys.maxsize
             while current_page <= max_page:
-                result = self.flickr.photos.search(page=current_page, min_upload_date=min_upload_date,
-                                                   max_upload_date=max_upload_date, **kwargs)
+                result = self.search_photo_with_retry(page=current_page, min_upload_date=min_upload_date,
+                                                      max_upload_date=max_upload_date, **kwargs)
                 log.debug(f"page: {result['photos']['page']}, pages: {result['photos']['pages']},"
                           f"perpage: {result['photos']['perpage']}, total: {result['photos']['total']}")
                 if max_page == sys.maxsize:
@@ -89,9 +92,9 @@ class FlickerClient:
 
         max_date = max_allowed_date if start_date + interval_width >= max_allowed_date else start_date + interval_width
         min_date = start_date
-        result = self.flickr.photos.search(min_upload_date=start_date.strftime(self._DATE_FORMAT),
-                                           max_upload_date=max_date.strftime(self._DATE_FORMAT),
-                                           **kwargs)
+        result = self.search_photo_with_retry(min_upload_date=start_date.strftime(self._DATE_FORMAT),
+                                              max_upload_date=max_date.strftime(self._DATE_FORMAT),
+                                              **kwargs)
 
         total = int(result['photos']['total'])
         increase_factor = 1.25
@@ -102,9 +105,9 @@ class FlickerClient:
                 log.debug(f"Increasing interval width. {total} is less than {self._MIN_RESULTS}")
                 interval_width = interval_width * increase_factor
                 max_date = start_date + interval_width
-            result = self.flickr.photos.search(min_upload_date=start_date.strftime(self._DATE_FORMAT),
-                                               max_upload_date=max_date.strftime(self._DATE_FORMAT),
-                                               **kwargs)
+            result = self.search_photo_with_retry(min_upload_date=start_date.strftime(self._DATE_FORMAT),
+                                                  max_upload_date=max_date.strftime(self._DATE_FORMAT),
+                                                  **kwargs)
             total = int(result['photos']['total'])
 
         if total <= self._MAX_RESULTS:
@@ -115,9 +118,9 @@ class FlickerClient:
             delta = delta if delta >= dt.timedelta(hours=6) else dt.timedelta(hours=6)
             mid_date = min_date + delta
             log.debug(f"Checking interval from {start_date} to {mid_date}")
-            result = self.flickr.photos.search(min_upload_date=start_date.strftime(self._DATE_FORMAT),
-                                               max_upload_date=mid_date.strftime(self._DATE_FORMAT),
-                                               **kwargs)
+            result = self.search_photo_with_retry(min_upload_date=start_date.strftime(self._DATE_FORMAT),
+                                                  max_upload_date=mid_date.strftime(self._DATE_FORMAT),
+                                                  **kwargs)
             total = int(result['photos']['total'])
             log.debug(f"min_date: {min_date}, max_date: {max_date}, mid_date: {mid_date}, number of photos: {total}")
             if self._MIN_RESULTS <= total <= self._MAX_RESULTS:
@@ -126,8 +129,20 @@ class FlickerClient:
                 min_date = mid_date
             else:  # total > self._MAX_RESULTS
                 max_date = mid_date
-        raise Exception(f"Could not find suitable date range. Total number of photos: {total}, min_date: {min_date},"
-                        f"max_date: {max_date}")
+        raise DownloadError(f"Could not find suitable date range. Total number of photos: {total}, "
+                            f"min_date: {min_date}, max_date: {max_date}")
+
+    def search_photo_with_retry(self, **kwargs):
+        response = self.flickr.photos.search(**kwargs)
+        if response['stat'] == 'fail' or response is None:
+            for i in range(self.num_retries):
+                log.warning(f"Received {response} from Flickr API, retrying... {i + 1}/{self.num_retries}")
+                time.sleep(1)
+                response = self.flickr.photos.search(**kwargs)
+                if response['stat'] == 'ok':
+                    return response
+            raise FlickrClientError(f"Flickr API call has failed. Response: {response}")
+        return response
 
 
 def _get_loading_params(cfg: DSConfig) -> LoadDto:
