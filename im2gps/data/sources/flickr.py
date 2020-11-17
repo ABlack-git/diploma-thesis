@@ -134,13 +134,13 @@ class FlickerClient:
 
     def search_photo_with_retry(self, **kwargs) -> dict:
         response = self.flickr.photos.search(**kwargs)
-        # TODO: remove response['photo']['total'] is None from condition if possible, not generic
-        if response['stat'] == 'fail' or response is None or response['photo']['total'] is None:
+        # TODO: remove 'photo' not in response from condition if possible, not generic
+        if response['stat'] == 'fail' or response is None or 'photo' not in response:
             for i in range(self.num_retries):
                 log.warning(f"Received {response} from Flickr API, retrying... {i + 1}/{self.num_retries}")
                 time.sleep(1)
                 response = self.flickr.photos.search(**kwargs)
-                if response['stat'] == 'ok' and response['photo']['total'] is not None:
+                if response['stat'] == 'ok' and 'photo' in response:
                     return response
             raise FlickrClientError(f"Flickr API call has failed. Response: {response}")
         return response
