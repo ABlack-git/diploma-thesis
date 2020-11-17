@@ -1,12 +1,16 @@
 import datetime as dt
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
-class PhotoDto:
-    photo: dict
-    page: int
-    per_page: int
-    start_date: dt.date
-    interval_width: dt.timedelta
+class LoadDto:
+    page: int = field(default=None)
+    per_page: int = field(default=None)
+    start_date: dt.datetime = field(default=None)
+    interval_width: dt.timedelta = field(default=None)
+
+
+@dataclass
+class PhotoDto(LoadDto):
+    photo: dict = field(default=None)
