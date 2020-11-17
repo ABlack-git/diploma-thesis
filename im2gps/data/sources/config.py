@@ -43,8 +43,23 @@ class MongoConfig:
 
 
 @dataclass
+class LoadFromConfig:
+    to_load: bool = MISSING
+    page: int = MISSING
+    per_page: int = MISSING
+    start_date: str = MISSING
+    interval_width: int = MISSING
+
+
+@dataclass
+class LoadConfig:
+    load_from_db: bool = MISSING
+    load_from_config: LoadFromConfig = MISSING
+
+
+@dataclass
 class AppConfig:
-    load_checkpoint: bool = MISSING
+    load: LoadConfig = MISSING
 
 
 @dataclass
