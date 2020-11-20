@@ -220,11 +220,12 @@ def _get_with_retry(url):
     response = requests.get(url)
     if response.status_code != requests.status_codes.codes.ok:
         retry = 0
-        while response.status_code != requests.status_codes.codes.ok or retry < num_retry:
+        while response.status_code != requests.status_codes.codes.ok and retry < num_retry:
             log.warning(f"Error getting {url}, status code was {response.status_code}. Retrying...")
-            log.debug(f"Response body: {response.content}")
+            log.debug(f"Resplessonse body: {response.content}")
             time.sleep(1)
             response = requests.get(url)
+            retry = retry + 1
     return response
 
 
