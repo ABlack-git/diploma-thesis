@@ -2,12 +2,9 @@ defaults:
   - creds: example
   - filters: filters
   - db: local
+  - checkpoint: meta
+
 app:
-  load:
-    load_from_db: True
-    load_from_config:
-      to_load: True # ignored if load_checkpoint is True
-      page: 1
-      per_page: 250
-      start_date: "2020-11-15" # in "%Y-%m-%d" format
-      interval_width: 24 # in hours
+  download: null # meta, photos
+  checkpoint_type: null # null(start from beginning), from_db, from_config
+  data_directory: "" # path to data root directory
