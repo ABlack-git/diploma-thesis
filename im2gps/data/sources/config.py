@@ -1,6 +1,6 @@
 from omegaconf import MISSING
 from dataclasses import dataclass
-from typing import List
+from typing import List, Union
 
 
 @dataclass
@@ -52,14 +52,23 @@ class LoadFromConfig:
 
 
 @dataclass
-class LoadConfig:
-    load_from_db: bool = MISSING
-    load_from_config: LoadFromConfig = MISSING
+class MetaCheckpoint:
+    page: int = MISSING
+    per_page: int = MISSING
+    start_date: str = MISSING
+    interval_width: int = MISSING
+
+
+@dataclass
+class DataCheckpoint:
+    skip: str = MISSING
 
 
 @dataclass
 class AppConfig:
-    load: LoadConfig = MISSING
+    download: str = MISSING
+    checkpoint_type: str = MISSING
+    data_directory: str = MISSING
 
 
 @dataclass
@@ -68,3 +77,4 @@ class DSConfig:
     filters: FilterConfig = MISSING
     db: MongoConfig = MISSING
     app: AppConfig = MISSING
+    checkpoint: Union[MetaCheckpoint, DataCheckpoint] = MISSING

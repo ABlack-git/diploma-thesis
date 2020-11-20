@@ -1,13 +1,18 @@
 import sys
 import flickrapi
 import logging
-import datetime as dt
 import time
+import os
+import requests
+import datetime as dt
+import io
+
+from PIL import Image
 
 from im2gps.data.sources.dtos import PhotoDto, LoadDto
 from im2gps.configutils import ConfigRepo
 from im2gps.data.sources.config import DSConfig
-from im2gps.data.sources.repo import FlickrPhoto, FlickrCheckpoint
+from im2gps.data.sources.repo import FlickrPhoto, FlickrCheckpoint, ImgUrl
 from im2gps.data.sources.exceptions import FlickrClientError, DownloadError
 
 from typing import Generator
@@ -146,8 +151,8 @@ class FlickerClient:
         return response
 
 
-def _get_loading_params(cfg: DSConfig) -> LoadDto:
-    if cfg.app.load.load_from_db:
+def _get_metadata_checkpoint(cfg: DSConfig) -> LoadDto:
+    if cfg.app.checkpoint_type == 'from_db':
         log.info("Loading checkpoint from database...")
         checkpoint = FlickrCheckpoint.load_latest()
         if checkpoint is not None:
@@ -159,23 +164,25 @@ def _get_loading_params(cfg: DSConfig) -> LoadDto:
         else:
             log.info(f"Checkpoint doesn't exist in database. Starting download from the beginning...")
             return LoadDto()
-
-    if cfg.app.load.load_from_config.to_load:
+    elif cfg.app.checkpoint_type == 'from_config':
         log.info("Loading checkpoint from config...")
-        load_cfg = cfg.app.load.load_from_config
+        load_cfg = cfg.checkpoint
         return LoadDto(page=load_cfg.page, per_page=load_cfg.per_page,
                        start_date=dt.datetime.strptime(load_cfg.start_date, "%Y-%m-%d"),
                        interval_width=dt.timedelta(hours=load_cfg.interval_width))
-
-    log.info("Starting download from the beginning")
-    return LoadDto()
+    elif cfg.app.checkpoint_type is None:
+        log.info("Starting download from the beginning")
+        return LoadDto()
+    else:
+        raise ValueError(f"Unknown checkpoint type {cfg.app.checkpoint_type}, allowed values are from_db and "
+                         f"from_config or should be empty")
 
 
 def collect_photos_metadata():
     cr = ConfigRepo()
     cfg: DSConfig = cr.get(DSConfig.__name__)
     flickr_client = FlickerClient(cfg)
-    load_cfg = _get_loading_params(cfg)
+    load_cfg = _get_metadata_checkpoint(cfg)
     for i, photoDto in enumerate(flickr_client.search_photos(
             start_date=load_cfg.start_date,
             interval_width=load_cfg.interval_width,
@@ -194,3 +201,65 @@ def collect_photos_metadata():
                      f"end date: {photoDto.start_date + photoDto.interval_width}, per page: {photoDto.per_page}")
             chkpt = FlickrCheckpoint.from_dto(photoDto)
             chkpt.save()
+
+
+def _get_data_checkpoint(cfg: DSConfig):
+    if cfg.app.checkpoint_type == "from_db":
+        raise NotImplemented("Loading from checkpoint not yet implemented")
+    elif cfg.app.checkpoint_type == "from_config":
+        return cfg.checkpoint.skip
+    elif cfg.app.checkpoint_type is None:
+        return 0
+    else:
+        raise ValueError(f"Unknown checkpoint type {cfg.app.checkpoint_type}, allowed values are from_db and "
+                         f"from_config or should be empty")
+
+
+def _get_with_retry(url):
+    num_retry = 5
+    response = requests.get(url)
+    if response.status_code != requests.status_codes.codes.ok:
+        retry = 0
+        while response.status_code != requests.status_codes.codes.ok or retry < num_retry:
+            log.warning(f"Error getting {url}, status code was {response.status_code}. Retrying...")
+            log.debug(f"Response body: {response.content}")
+            time.sleep(1)
+            response = requests.get(url)
+    return response
+
+
+def download_photos():
+    cr = ConfigRepo()
+    cfg: DSConfig = cr.get(DSConfig.__name__)
+
+    root_dir = cfg.app.data_directory
+    if not os.path.exists(root_dir):
+        os.makedirs(root_dir)
+
+    to_skip = _get_data_checkpoint(cfg)
+
+    photo: FlickrPhoto
+    URL_TYPES = ('l', 'o', 'c', 'm')  # ordered by priority
+    for i, photo in enumerate(FlickrPhoto.objects.order_by('date_upload').skip(to_skip)):
+        img_url: ImgUrl = None
+        for url_type in URL_TYPES:
+            if url_type in photo.urls:
+                img_url = photo.urls[url_type]
+                break
+        if img_url is None:
+            log.warning(f"Image with id {photo.photo_id} doesn't have required url")
+            continue
+
+        response = _get_with_retry(img_url.url)
+        img = Image.open(io.BytesIO(response.content))
+
+        folder = os.path.join(root_dir, f"{photo.date_upload.year}", f"{photo.date_upload.month}")
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+
+        _, file_name = os.path.split(img_url.url)
+        path = os.path.join(root_dir, folder, file_name)
+
+        log.info(f"Saving image number {i + to_skip} (id: {photo.photo_id}, upload_date: {photo.date_upload}) "
+                 f"to {path}")
+        img.save(path)
