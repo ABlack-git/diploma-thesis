@@ -12,7 +12,7 @@ from PIL import Image
 from im2gps.data.sources.dtos import PhotoDto, LoadDto
 from im2gps.configutils import ConfigRepo
 from im2gps.data.sources.config import DSConfig
-from im2gps.data.sources.repo import FlickrPhoto, FlickrCheckpoint, ImgUrl
+from im2gps.data.flickr_repo import FlickrPhoto, FlickrCheckpoint, ImgUrl
 from im2gps.data.sources.exceptions import FlickrClientError, DownloadError
 
 from typing import Generator

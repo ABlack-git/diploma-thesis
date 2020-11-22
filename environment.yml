@@ -2,12 +2,14 @@ name: im2gps
 channels:
   - conda-forge
   - defaults
+  - pytorch
 dependencies:
-  - python=3.8.2
-  - pip=20.0.2
+  - python=3.7.*
+  - pip
   - requests=2.24.0
   - mongoengine=0.20.0
   - pillow
   - pip:
       - flickrapi == 2.4.0
       - hydra-core == 1.0.3
+      - resources/cirtorch-0.0.1-py3-none-any.whl
