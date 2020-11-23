@@ -241,7 +241,7 @@ def download_photos():
 
     photo: FlickrPhoto
     URL_TYPES = ('l', 'o', 'c', 'm')  # ordered by priority
-    cursor = FlickrPhoto.objects.order_by('date_upload').skip(to_skip).timeout(False)
+    cursor = FlickrPhoto.objects.order_by('date_upload').skip(to_skip).batch_size(500).timeout(False)
     for i, photo in enumerate(cursor):
         img_url: ImgUrl = None
         for url_type in URL_TYPES:
