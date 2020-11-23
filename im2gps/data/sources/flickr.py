@@ -244,26 +244,36 @@ def download_photos():
     cursor = FlickrPhoto.objects.order_by('date_upload').skip(to_skip).batch_size(500).timeout(False)
     for i, photo in enumerate(cursor):
         img_url: ImgUrl = None
+
         for url_type in URL_TYPES:
             if url_type in photo.urls:
                 img_url = photo.urls[url_type]
-                break
+
+                response = _get_with_retry(img_url.url)
+                if response.status_code != requests.status_codes.codes.ok:
+                    log.warning(f"Response status is {response.status_code}. Skipping this photo "
+                                f"(id: {photo.photo_id}).")
+                    img_url = None
+                    continue
+
+                img = Image.open(io.BytesIO(response.content))
+                folder = os.path.join(root_dir, f"{photo.date_upload.year}", f"{photo.date_upload.month}")
+                if not os.path.exists(folder):
+                    os.makedirs(folder)
+
+                _, file_name = os.path.split(img_url.url)
+                path = os.path.join(root_dir, folder, file_name)
+
+                try:
+                    log.info(f"Saving image number {i + to_skip} (id: {photo.photo_id}, "
+                             f"upload_date: {photo.date_upload}) to {path}")
+                    img.save(path)
+                    break  # stop iterating links if found a valid one
+                except OSError:
+                    log.warning(f"Error when saving photo... Will retry if other links exist", exc_info=True)
+                    img_url = None
+
         if img_url is None:
             log.warning(f"Image with id {photo.photo_id} doesn't have required url")
-            continue
-
-        response = _get_with_retry(img_url.url)
-        img = Image.open(io.BytesIO(response.content))
-
-        folder = os.path.join(root_dir, f"{photo.date_upload.year}", f"{photo.date_upload.month}")
-        if not os.path.exists(folder):
-            os.makedirs(folder)
-
-        _, file_name = os.path.split(img_url.url)
-        path = os.path.join(root_dir, folder, file_name)
-
-        log.info(f"Saving image number {i + to_skip} (id: {photo.photo_id}, upload_date: {photo.date_upload}) "
-                 f"to {path}")
-        img.save(path)
 
     del cursor
