@@ -1,0 +1,5 @@
+# @package _group_
+gpu: 0
+model_dir: ""
+data_dir: ""
+img_resolution: 512

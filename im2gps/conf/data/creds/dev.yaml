@@ -1,0 +1,6 @@
+# @package _group_
+flickr:
+  key: '875624e8b45c9b1458315b4d18ebabbd' # do not commit key to repository
+  secret: '8ebf43cd9cfd3e7e' # do not commit key to repository
+mapillary:
+  clientId: 'RXFuREYzM1dLQU55WHpkRkJJTDc3ZToyMTI3MDcxOTkzNzg2YzFm' # do not commit key to repository

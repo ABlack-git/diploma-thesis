@@ -63,18 +63,12 @@ class MetaCheckpoint:
 class DataCheckpoint:
     skip: str = MISSING
 
-
 @dataclass
-class AppConfig:
-    download: str = MISSING
-    checkpoint_type: str = MISSING
-    data_directory: str = MISSING
-
-
-@dataclass
-class DSConfig:
+class DataConfig:
     creds: CredsConfig = MISSING
     filters: FilterConfig = MISSING
     db: MongoConfig = MISSING
-    app: AppConfig = MISSING
     checkpoint: Union[MetaCheckpoint, DataCheckpoint] = MISSING
+    download: str = MISSING
+    checkpoint_type: str = MISSING
+    data_directory: str = MISSING
