@@ -60,7 +60,7 @@ def get_descriptor_from_image(net: ImageRetrievalNet, img: Image, cfg: Config) -
 def make_descriptors():
     conf: Config = load_config(Config.__name__)
     connect(db=conf.data.db.database, host=conf.data.db.host, port=conf.data.db.port)
-    log.info("Loading network...")
+    log.info(f"Loading network to gpu: {conf.imret.gpu}")
     net = load_network(conf)
     with DescriptorsTable(conf.imret.descriptor_file, net.meta['outputdim']) as table, \
             DirectoryIterator.load_or_create(conf.imret.data_dir, conf.imret.checkpoint_path) as paths:

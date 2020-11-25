@@ -1,8 +1,11 @@
 import tables as tb
 import numpy as np
+import logging
 
 from dataclasses import dataclass, fields
 from typing import List, Union, Generator
+
+log = logging.getLogger(__name__)
 
 
 @dataclass()
@@ -31,15 +34,17 @@ class DescriptorsTable:
             lon = tb.Float64Col()
             descriptor = tb.Float64Col(shape=(self.desc_shape,))
 
+        log.debug(f"Opening descriptor file {self.file_path}")
         self.file = tb.open_file(self.file_path, mode='a', title="Descriptor file")
         if "/descriptors" in self.file:
-            self.group = self.file.descriptors
+            self.group = self.file.root.descriptors
         else:
             self.group = self.file.create_group(self.file.root, "descriptors")
         if "/descriptors/descriptors" in self.file:
-            self.table = self.file.descriptors.descriptors
+            self.table = self.file.root.descriptors.descriptors
         else:
             self.table = self.file.create_table(self.group, "descriptors", _DescriptorTable)
+        log.debug("File opened successfully")
 
     def iterrows(self) -> Generator[Descriptor, None, None]:
         for row in self.table.iterrows():
