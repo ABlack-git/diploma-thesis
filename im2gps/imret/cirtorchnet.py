@@ -66,7 +66,7 @@ def make_descriptors():
             DirectoryIterator.load_or_create(conf.imret.data_dir, conf.imret.checkpoint_path) as paths:
 
         for file_path in paths:
-            if os.path.basename(file_path).lower().endswith(('.jpg', '.jpeg', '.png', '.gif')):
+            if not os.path.basename(file_path).lower().endswith(('.jpg', '.jpeg', '.png', '.gif')):
                 continue
             log.info(f"Getting descriptors for {file_path}")
             img_id = get_img_id_from_path(file_path)
