@@ -59,14 +59,14 @@ def get_descriptor_from_image(net: ImageRetrievalNet, img: Image, cfg: Config) -
 
 def make_descriptors():
     conf: Config = load_config(Config.__name__)
-    connect(db=conf.data.db.database, host=conf.data.db.host, port=conf.data.db.port, alias='default')
+    connect(db=conf.data.db.database, host=conf.data.db.host, port=conf.data.db.port)
     log.info("Loading network...")
     net = load_network(conf)
     with DescriptorsTable(conf.imret.descriptor_file, net.meta['outputdim']) as table, \
             DirectoryIterator.load_or_create(conf.imret.data_dir, conf.imret.checkpoint_path) as paths:
 
         for file_path in paths:
-            if os.path.basename(file_path).lower().endswith(('.jpg', '.jpeg', '.png')):
+            if os.path.basename(file_path).lower().endswith(('.jpg', '.jpeg', '.png', '.gif')):
                 continue
             log.info(f"Getting descriptors for {file_path}")
             img_id = get_img_id_from_path(file_path)
@@ -79,11 +79,11 @@ def make_descriptors():
 
             desc = Descriptor(
                 photo_id=photo.photo_id,
-                lon=photo.geo.coords[0],
-                lat=photo.geo.coords[1],
+                lon=photo.geo.coords['coordinates'][0],
+                lat=photo.geo.coords['coordinates'][1],
                 descriptor=descriptor
             )
             table.add(desc)
             log.info(f"Saved descriptors of {file_path}")
 
-    disconnect(alias='default')
+    disconnect()
