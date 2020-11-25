@@ -62,6 +62,7 @@ class DescriptorsTable:
         if (self._unflushed + 1) % self._flush_every == 0:
             self.table.flush()
             self._unflushed = 0
+            log.debug(f"Saved descriptors to {self.file_path}")
 
     def __add_descriptor_to_table(self, desc: Descriptor):
         row = self.table.row
