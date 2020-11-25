@@ -59,7 +59,7 @@ def get_descriptor_from_image(net: ImageRetrievalNet, img: Image, cfg: Config) -
 
 def make_descriptors():
     conf: Config = load_config(Config.__name__)
-    connect(db=conf.data.db.database, host=conf.data.db.host, port=conf.data.db.port, alias='im2gps')
+    connect(db=conf.data.db.database, host=conf.data.db.host, port=conf.data.db.port, alias='default')
     log.info("Loading network...")
     net = load_network(conf)
     with DescriptorsTable(conf.imret.descriptor_file, net.meta['outputdim']) as table, \
@@ -86,4 +86,4 @@ def make_descriptors():
             table.add(desc)
             log.info(f"Saved descriptors of {file_path}")
 
-    disconnect(alias='im2gps')
+    disconnect(alias='default')
