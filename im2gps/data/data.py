@@ -74,6 +74,7 @@ class DirectoryIterator:
         if exc_type is not None:
             self.queue.insert(0, self.current)
             self.save_checkpoint(self.checkpoint_path)
+        return False
 
     def save_checkpoint(self, path):
         with open(path, 'wb') as file:
