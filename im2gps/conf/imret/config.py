@@ -8,3 +8,5 @@ class ImRetConfig:
     data_dir: str = MISSING
     model_dir: str = MISSING
     img_resolution: int = MISSING
+    descriptor_file: str = MISSING
+    checkpoint_path: str = MISSING

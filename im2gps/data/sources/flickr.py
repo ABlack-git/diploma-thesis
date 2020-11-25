@@ -13,7 +13,7 @@ from im2gps.data.sources.dtos import PhotoDto, LoadDto
 from im2gps.conf.config import ConfigRepo
 from im2gps.conf.data.config import DataConfig
 from im2gps.data.flickr_repo import FlickrPhoto, FlickrCheckpoint, ImgUrl
-from im2gps.data.sources.exceptions import FlickrClientError, DownloadError
+from im2gps.exceptions import FlickrClientError, DownloadError
 
 from typing import Generator
 

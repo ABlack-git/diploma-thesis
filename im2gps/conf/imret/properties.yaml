@@ -1,5 +1,7 @@
 # @package _group_
 gpu: 0
-model_dir: ""
-data_dir: ""
+model_dir: "model_dir"
+data_dir: "data_dir"
 img_resolution: 512
+descriptor_file: "${imret.img_resolution}_flickr_descriptor.h5"
+checkpoint_path: "${imret.model_dir}/checkpoint.pickle"

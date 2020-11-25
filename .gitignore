@@ -2,3 +2,4 @@ im2gps/data/sources/conf/creds/dev.yaml
 **/outputs/**
 **/__pycache__/**
 **/.env/**
+**/dev-config/**
