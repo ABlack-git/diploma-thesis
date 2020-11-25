@@ -1,0 +1,7 @@
+defaults:
+  - data: properties
+  - data/creds: example
+  - data/filters: filters
+  - data/db: local
+  - data/checkpoint: meta
+  - imret: properties

@@ -8,7 +8,8 @@ dependencies:
   - pip
   - requests=2.24.0
   - mongoengine=0.20.0
-  - pillow
+  - pillow=8.0.1
+  - pytables=3.6.1
   - pip:
       - flickrapi == 2.4.0
       - hydra-core == 1.0.3

@@ -10,10 +10,10 @@ import io
 from PIL import Image
 
 from im2gps.data.sources.dtos import PhotoDto, LoadDto
-from im2gps.configutils import ConfigRepo
-from im2gps.data.sources.config import DSConfig
+from im2gps.conf.config import ConfigRepo
+from im2gps.conf.data.config import DataConfig
 from im2gps.data.flickr_repo import FlickrPhoto, FlickrCheckpoint, ImgUrl
-from im2gps.data.sources.exceptions import FlickrClientError, DownloadError
+from im2gps.exceptions import FlickrClientError, DownloadError
 
 from typing import Generator
 
@@ -29,7 +29,7 @@ class FlickerClient:
     which solves the mentioned problem by splitting requests by date range.  
     """
 
-    def __init__(self, cfg: DSConfig):
+    def __init__(self, cfg: DataConfig):
         self.flickr = flickrapi.FlickrAPI(api_key=cfg.creds.flickr.key, secret=cfg.creds.flickr.secret,
                                           format='parsed-json')
         self.num_retries = 5
@@ -151,8 +151,8 @@ class FlickerClient:
         return response
 
 
-def _get_metadata_checkpoint(cfg: DSConfig) -> LoadDto:
-    if cfg.app.checkpoint_type == 'from_db':
+def _get_metadata_checkpoint(cfg: DataConfig) -> LoadDto:
+    if cfg.checkpoint_type == 'from_db':
         log.info("Loading checkpoint from database...")
         checkpoint = FlickrCheckpoint.load_latest()
         if checkpoint is not None:
@@ -164,23 +164,23 @@ def _get_metadata_checkpoint(cfg: DSConfig) -> LoadDto:
         else:
             log.info(f"Checkpoint doesn't exist in database. Starting download from the beginning...")
             return LoadDto()
-    elif cfg.app.checkpoint_type == 'from_config':
+    elif cfg.checkpoint_type == 'from_config':
         log.info("Loading checkpoint from config...")
         load_cfg = cfg.checkpoint
         return LoadDto(page=load_cfg.page, per_page=load_cfg.per_page,
                        start_date=dt.datetime.strptime(load_cfg.start_date, "%Y-%m-%d"),
                        interval_width=dt.timedelta(hours=load_cfg.interval_width))
-    elif cfg.app.checkpoint_type is None:
+    elif cfg.checkpoint_type is None:
         log.info("Starting download from the beginning")
         return LoadDto()
     else:
-        raise ValueError(f"Unknown checkpoint type {cfg.app.checkpoint_type}, allowed values are from_db and "
+        raise ValueError(f"Unknown checkpoint type {cfg.checkpoint_type}, allowed values are from_db and "
                          f"from_config or should be empty")
 
 
 def collect_photos_metadata():
     cr = ConfigRepo()
-    cfg: DSConfig = cr.get(DSConfig.__name__)
+    cfg: DataConfig = cr.get(DataConfig.__name__)
     flickr_client = FlickerClient(cfg)
     load_cfg = _get_metadata_checkpoint(cfg)
     for i, photoDto in enumerate(flickr_client.search_photos(
@@ -203,15 +203,15 @@ def collect_photos_metadata():
             chkpt.save()
 
 
-def _get_data_checkpoint(cfg: DSConfig):
-    if cfg.app.checkpoint_type == "from_db":
+def _get_data_checkpoint(cfg: DataConfig):
+    if cfg.checkpoint_type == "from_db":
         raise NotImplemented("Loading from checkpoint not yet implemented")
-    elif cfg.app.checkpoint_type == "from_config":
+    elif cfg.checkpoint_type == "from_config":
         return cfg.checkpoint.skip
-    elif cfg.app.checkpoint_type is None:
+    elif cfg.checkpoint_type is None:
         return 0
     else:
-        raise ValueError(f"Unknown checkpoint type {cfg.app.checkpoint_type}, allowed values are from_db and "
+        raise ValueError(f"Unknown checkpoint type {cfg.checkpoint_type}, allowed values are from_db and "
                          f"from_config or should be empty")
 
 
@@ -231,9 +231,9 @@ def _get_with_retry(url):
 
 def download_photos():
     cr = ConfigRepo()
-    cfg: DSConfig = cr.get(DSConfig.__name__)
+    cfg: DataConfig = cr.get(DataConfig.__name__)
 
-    root_dir = cfg.app.data_directory
+    root_dir = cfg.data_directory
     if not os.path.exists(root_dir):
         os.makedirs(root_dir)
 
