@@ -4,21 +4,13 @@ from omegaconf import MISSING
 
 from im2gps.conf.data.config import DataConfig
 from im2gps.conf.imret.config import ImRetConfig
+from im2gps.utils import Singelton
 
 
 @dataclass
 class Config:
     data: DataConfig = MISSING
     imret: ImRetConfig = MISSING
-
-
-class Singelton(type):
-    _instances = {}
-
-    def __call__(cls, *args, **kwargs):
-        if cls not in cls._instances:
-            cls._instances[cls] = super(Singelton, cls).__call__(*args, **kwargs)
-        return cls._instances[cls]
 
 
 class ConfigRepo(metaclass=Singelton):

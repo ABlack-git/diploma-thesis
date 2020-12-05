@@ -15,6 +15,13 @@ class Descriptor:
     lon: float = None
     descriptor: np.array = None
 
+    @classmethod
+    def from_row(cls, row) -> 'Descriptor':
+        desc = cls()
+        for field in fields(cls):
+            setattr(desc, field.name, row[field.name])
+        return desc
+
 
 class DescriptorsTable:
     def __init__(self, file_path: str, descriptor_shape: int, flush_every=1000):
@@ -48,10 +55,21 @@ class DescriptorsTable:
 
     def iterrows(self) -> Generator[Descriptor, None, None]:
         for row in self.table.iterrows():
-            desc = Descriptor()
-            for field in fields(Descriptor):
-                setattr(desc, field.name, row[field.name])
-            yield desc
+            yield Descriptor.from_row(row)
+
+    def get_descriptors_by_id(self, ids: Union[int, List[int]]):
+        if isinstance(ids, int):
+            row = self.table.read_where(f'photo_id == {ids}')
+            if row.size == 0:
+                return Descriptor()
+            return Descriptor.from_row(row)
+        elif isinstance(ids, list):
+            descriptors = []
+            for row in self.table.where("|".join([f"(photo_id=={_id})" for _id in ids])):
+                descriptors.append(Descriptor.from_row(row))
+            return descriptors
+        else:
+            raise ValueError(f"ids should be int or list, was {type(ids)}")
 
     def add(self, descriptors: Union[List[Descriptor], Descriptor]):
         if isinstance(descriptors, Descriptor):
@@ -82,3 +100,4 @@ class DescriptorsTable:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
         return False
+
