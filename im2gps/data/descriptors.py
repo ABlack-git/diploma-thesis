@@ -51,11 +51,21 @@ class DescriptorsTable:
             self.table = self.file.root.descriptors.descriptors
         else:
             self.table = self.file.create_table(self.group, "descriptors", _DescriptorTable)
+            self.table.cols.photo_id.create_index()
+            self.table.autoindex = True
         log.debug("File opened successfully")
 
     def iterrows(self) -> Generator[Descriptor, None, None]:
         for row in self.table.iterrows():
             yield Descriptor.from_row(row)
+
+    def get_descriptors_by_range(self, start, stop, step=None, field=None) -> List[Descriptor]:
+        if field is not None:
+            return self.table.read(start, stop, step, field)
+        descriptors = []
+        for row in self.table.read(start, stop, step):
+            descriptors.append(Descriptor.from_row(row))
+        return descriptors
 
     def get_descriptors_by_id(self, ids: Union[int, List[int]]):
         if isinstance(ids, int):
@@ -94,6 +104,10 @@ class DescriptorsTable:
             self.table.flush()
         self.file.close()
 
+    @property
+    def descriptor_shape(self):
+        return self.table.coldescrs['descriptor'].shape
+
     def __enter__(self):
         return self
 
@@ -101,3 +115,5 @@ class DescriptorsTable:
         self.close()
         return False
 
+    def __len__(self):
+        return self.table.nrows
