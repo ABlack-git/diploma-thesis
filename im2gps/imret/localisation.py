@@ -69,7 +69,8 @@ def __batch_range(size, step):
 
 
 def _localize_by_1nn(queries: tp.Union[np.ndarray, DescriptorsTable], database: DescriptorsTable,
-                     batch_size=1000, use_torch: bool = True, device: torch.device = None) -> np.ndarray:
+                     query_batch_size=100, db_batch_size=1000, use_torch: bool = True,
+                     device: torch.device = None) -> np.ndarray:
     """
 
     :param queries:
@@ -89,13 +90,13 @@ def _localize_by_1nn(queries: tp.Union[np.ndarray, DescriptorsTable], database: 
 
     distances = np.full((num_queries,), np.inf)
     localisation = np.full((num_queries,), np.nan, dtype=[('longitude', 'f8'), ('latitude', 'f8')])
-    for q_batch_start, q_batch_end in __batch_range(num_queries, batch_size):
+    for q_batch_start, q_batch_end in __batch_range(num_queries, query_batch_size):
         if isinstance(queries, np.ndarray):
             q_batch = queries[q_batch_start:q_batch_end + 1]
         else:
             q_batch = queries.get_descriptors_by_range(q_batch_start, q_batch_end + 1, field='descriptor')
 
-        for d_batch_start, d_batch_end in __batch_range(len(database), batch_size):
+        for d_batch_start, d_batch_end in __batch_range(len(database), db_batch_size):
             batch_descriptors = database.get_descriptors_by_range(d_batch_start, d_batch_end + 1)
             d_batch = np.array([desc.descriptor for desc in batch_descriptors])
             batch_distances = _compute_distances(q_batch, d_batch, use_torch, device)
@@ -175,7 +176,9 @@ test_file = '/Users/zakharca/Documents/Study/thesis/descriptors/512_flickr_descr
 val_file = '/Users/zakharca/Documents/Study/thesis/descriptors/512_flickr_descriptor_val_q.h5'
 with DescriptorsTable(test_file, 2048) as test_descriptors, \
         DescriptorsTable(val_file, 2048) as val_descriptors:
-    localizations = _localize_by_1nn(test_descriptors, val_descriptors, use_torch=False, batch_size=100)
+    localizations = _localize_by_1nn(test_descriptors, val_descriptors, use_torch=True, device=torch.device('cuda:1'),
+                                     query_batch_size=100, db_batch_size=10000)
+    # localizations = _localize_by_1nn(test_descriptors, val_descriptors, use_torch=False, db_batch_size=100)
     gt_locs = [(desc.lon, desc.lat) for desc in test_descriptors.iterrows()]
     accuracy = localization_accuracy(gt_locs, localizations.tolist())
     print(accuracy)
