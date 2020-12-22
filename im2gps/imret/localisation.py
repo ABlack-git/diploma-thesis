@@ -122,18 +122,54 @@ def _localize_by_1nn(queries: tp.Union[np.ndarray, DescriptorsTable], database: 
     return localisation
 
 
-def localize_imgs(query_descriptors: np.ndarray, localization_type: str):
-    """
-    Function to get image localization from query by localization type
-    :param query_descriptors: array of query descriptors, can be 1xD or NxD, where D is size of descriptor,
-    N is number of queries
-    :type query_descriptors: np.ndarray
-    :param localization_type: type of localization to use
-    :type localization_type: string
-    :return:
-    :rtype:
-    """
+def _kde():
     pass
+
+
+def localise_knn_kde(queries: tp.Union[np.ndarray, DescriptorsTable], database: DescriptorsTable,
+                     k, sigma, m, query_batch_size=100, db_batch_size=1000, use_torch: bool = True,
+                     device: torch.device = None):
+    if isinstance(queries, np.ndarray):
+        num_queries = queries.shape[0]
+    elif isinstance(queries, DescriptorsTable):
+        num_queries = len(queries)
+    else:
+        raise ValueError(f"queries should be of type either np.ndarray or DescriptorTable, was {type(queries)}")
+    distances = np.full((num_queries, k), np.inf)
+    localisation = np.full((num_queries,), np.nan, dtype=[('longitude', 'f8'), ('latitude', 'f8')])
+    for q_batch_start, q_batch_end in __batch_range(num_queries, query_batch_size):
+        if isinstance(queries, np.ndarray):
+            q_batch = queries[q_batch_start:q_batch_end + 1]
+        else:
+            q_batch = queries.get_descriptors_by_range(q_batch_start, q_batch_end + 1, field='descriptor')
+
+        for d_batch_start, d_batch_end in __batch_range(len(database), db_batch_size):
+            batch_descriptors = database.get_descriptors_by_range(d_batch_start, d_batch_end + 1)
+            d_batch = np.array([desc.descriptor for desc in batch_descriptors])
+            batch_distances = _compute_distances(q_batch, d_batch, use_torch, device)
+            # for each query sort distances and return original indices (only k first indices)
+            k_min_indices = np.argsort(batch_distances, axis=1)[:, :k]
+            k_min_distances = np.take_along_axis(batch_distances, k_min_indices, axis=1)
+            # get indices of database descriptor with min distance from query
+            min_indices = np.argmin(batch_distances, axis=1)
+            # get min distance values
+            min_vals = np.take_along_axis(batch_distances, np.expand_dims(min_indices, axis=1), axis=1).squeeze()
+
+            # check if current distance of queries is greater than min values
+            dist_batch_slice = distances[q_batch_start:q_batch_end + 1]
+            dist_condition = dist_batch_slice > min_vals
+
+            # update locations where current distance of queries is greater than min values
+
+            desc_locations = np.array([(batch_descriptors[i].lon, batch_descriptors[i].lat) for i in min_indices],
+                                      dtype=[('longitude', 'f8'), ('latitude', 'f8')])
+            loc_batch_slice = localisation[q_batch_start:q_batch_end + 1]
+            loc_batch_slice[:] = np.where(dist_condition, desc_locations, loc_batch_slice)
+
+            # update distance where current distance of queries is greater than min values
+            dist_batch_slice[:] = np.where(dist_condition, min_vals, dist_batch_slice)
+
+    return localisation
 
 
 # q1 = np.array([1, 2, 3])
