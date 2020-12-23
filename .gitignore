@@ -4,3 +4,6 @@ im2gps/data/pipelines/conf/creds/dev.yaml
 **/.env/**
 **/dev-config/**
 *.log
+dist/**
+build/**
+config-dev.yaml
