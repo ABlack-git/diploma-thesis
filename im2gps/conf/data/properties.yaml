@@ -1,4 +1,0 @@
-# @package _group_
-download: null # meta, photos
-checkpoint_type: null # null(start from beginning), from_db, from_config
-data_directory: "/Users/zakharca/Documents/Study/thesis/data" # path to data root directory

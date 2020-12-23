@@ -11,9 +11,10 @@ dependencies:
   - pillow=8.0.1
   - pytables=3.6.1
   - pytorch=1.1.0
-  - matplotlib
+  - click=7.0
+  - omegaconf=2.0.*
+  - pyyaml
   - pip:
       - flickrapi == 2.4.0
-      - hydra-core == 1.0.3
       - haversine == 2.3.0
       - resources/cirtorch-0.0.1-py3-none-any.whl

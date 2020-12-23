@@ -1,7 +1,74 @@
-defaults:
-  - data: properties
-  - data/creds: example
-  - data/filters: filters
-  - data/db: local
-  - data/checkpoint: meta
-  - imret: properties
+data:
+  data_directory: /Users/zakharca/Documents/Study/thesis/data
+  creds:
+    flickr:
+      key: ???
+      secret: ???
+  db:
+    host: localhost
+    port: 51998
+    database: im2gps
+  datasets:
+    split_file: 'resources/datasets.json'
+    train: ???
+    train_queries: ???
+    test_queries: ???
+    validation_queries: ???
+
+cirtorch:
+  model_dir: model_dir
+  img_resolution: 512
+
+properties:
+  gpu_id: 0
+  output_dir: output
+
+
+checkpoints:
+  meta_checkpoint:
+    page: 1
+    per_page: 250
+    start_date: '2020-11-15'
+    interval_width: 24
+  descriptor_checkpoint:
+    checkpoint_path: ${properties.output_dir}/checkpoint.pickle
+
+filters:
+  flickr:
+    tags:
+      - czechrepublic
+      - -birthday
+      - -party
+      - -portrait
+      - -abstract
+      - -macro
+      - -wedding
+      - -indoors
+      - -fun
+      - -kid
+      - -child
+      - -children
+      - -graffiti
+      - -prom
+      - -concert
+      - -friend
+      - -family
+      - -dog
+      - -cat
+      - -face
+      - -woman
+      - -girl
+      - -lady
+      - -boy
+      - -guy
+      - -nude
+      - -gay
+      - -lesbian
+      - -live
+      - -baby
+      - -stillife
+    place_id: 5iL78XNTUb6Q0TIacg
+    woeid: 23424810
+    media: photos
+    has_geo: 1
+    accuracy: 16

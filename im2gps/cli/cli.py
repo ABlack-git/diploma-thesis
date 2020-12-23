@@ -1,0 +1,36 @@
+import click
+import logging
+
+from mongoengine import connect
+from im2gps.conf import config
+from im2gps.cli import data, localisation
+from omegaconf import OmegaConf
+
+log = logging.getLogger(__name__)
+
+
+@click.group()
+@click.option("--config-path", "-c", multiple=True, default=None, required=False,
+              help='Specify additional application configs, can be used multiple times to provide multiple configs')
+@click.option("--no-db", required=False, is_flag=True, default=False, help="Don't try to connect to database")
+@click.option("-v", "--verbosity",
+              type=click.Choice(['disable', 'debug', 'info', 'warn', 'error', 'critical'], case_sensitive=False),
+              default='info', help="Provide verbosity level")
+@click.option("--show-config", is_flag=True, default=False, help='Print current configuration to stdout')
+def entry_point(config_path, no_db, verbosity, show_config):
+    config.configure_logging(verbosity)
+    log.debug("Loading configuration")
+    cfg = config.load_config(config_path)
+    config.save_configs(cfg)
+    if not no_db:
+        log.debug("Connecting to database")
+        connect(db=cfg.data.db.database, host=cfg.data.db.host, port=cfg.data.db.port)
+    if show_config:
+        print(OmegaConf.to_yaml(cfg))
+
+
+entry_point.add_command(data.data)
+entry_point.add_command(localisation.localisation)
+
+if __name__ == '__main__':
+    entry_point()

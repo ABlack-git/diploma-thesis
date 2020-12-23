@@ -1,11 +1,8 @@
-import hydra
 import json
 import logging
 import numpy as np
-from mongoengine import connect
 
 from im2gps.data.flickr_repo import FlickrPhoto
-from im2gps.conf.config import Config
 
 log = logging.getLogger(__name__)
 
@@ -33,7 +30,7 @@ def _sample(data: dict, total_count, threshold):
     return authors
 
 
-def _split():
+def split_data():
     pipeline = [
         {"$group": {"_id": "$owner_name", "count": {"$sum": 1}}},
         {"$sort": {"count": -1}}
@@ -54,12 +51,3 @@ def _split():
     with open('datasets.json', 'w') as f:
         json.dump(datasets, f)
 
-
-@hydra.main(config_path='../../conf', config_name='config')
-def main(cfg: Config):
-    connect(db=cfg.data.db.database, host=cfg.data.db.host, port=cfg.data.db.port)
-    _split()
-
-
-if __name__ == '__main__':
-    main()
