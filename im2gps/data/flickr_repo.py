@@ -1,6 +1,6 @@
 import datetime as dt
 
-from im2gps.data.sources.dtos import PhotoDto
+from im2gps.data.flickrclient import PhotoDto
 from mongoengine import Document, EmbeddedDocument, EmbeddedDocumentField, LongField, StringField, DateTimeField, \
     ListField, IntField, PointField, MapField
 

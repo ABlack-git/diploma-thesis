@@ -206,7 +206,7 @@ def localise_knn_kde(queries: tp.Union[np.ndarray, DescriptorsTable], database: 
 # plt.plot(x, y)
 # plt.plot(x, z)
 # plt.show()
-from im2gps.imret.metric import localization_accuracy
+from im2gps.lib.metric import localization_accuracy
 
 test_file = '/Users/zakharca/Documents/Study/thesis/descriptors/512_flickr_descriptor_test_q.h5'
 val_file = '/Users/zakharca/Documents/Study/thesis/descriptors/512_flickr_descriptor_val_q.h5'
