@@ -117,3 +117,6 @@ class DescriptorsTable:
 
     def __len__(self):
         return self.table.nrows
+
+    def __getitem__(self, item):
+        return Descriptor.from_row(self.table[item])
