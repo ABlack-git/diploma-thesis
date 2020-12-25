@@ -2,6 +2,7 @@ import torch
 import logging
 import numpy as np
 import typing as tp
+import faiss
 from im2gps.data.descriptors import DescriptorsTable
 
 log = logging.getLogger(__name__)
@@ -172,49 +173,34 @@ def localise_knn_kde(queries: tp.Union[np.ndarray, DescriptorsTable], database: 
     return localisation
 
 
-# q1 = np.array([1, 2, 3])
-# q2 = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
-# d = np.array([[9, 8, 7], [6, 5, 4], [3, 2, 1]])
-# diff_numpy = _compute_distances(q2, d, use_torch=True)
-# print(diff_numpy)
+def build_index(data: DescriptorsTable, batch_size=50000, gpu_enabled=False, gpu_id=0) -> faiss.IndexFlatL2:
+    log.debug("Creating flatL2 index")
+    index = faiss.IndexFlatL2(data.desc_shape)
+    if gpu_enabled:
+        log.debug(f"Creating GPU index with gpu_id={gpu_id}")
+        resource = faiss.StandardGpuResources()
+        index = faiss.index_cpu_to_gpu(resource, gpu_id, index)
 
-# def test_numpy(q_size, b_size):
-#     queries = np.random.random((q_size, 2048))
-#     base = np.random.random((b_size, 2048))
-#     norms = _compute_distances(queries, base)
-#
-#
-# def test_torch(q_size, b_size):
-#     queries = np.random.random((q_size, 2048))
-#     base = np.random.random((b_size, 2048))
-#     norms = _compute_distance_torch(queries, base)
-#
-#
-# import timeit
-# import matplotlib.pyplot as plt
-#
-# x = []
-# y = []
-# z = []
-# for i in range(100, 2100, 100):
-#     x.append(i)
-#     y.append(timeit.timeit(f"test_numpy({i}, 10)", setup="from __main__ import test_numpy", number=10) / 10)
-#
-# for i in range(100, 2100, 100):
-#     z.append(timeit.timeit(f"test_torch({i}, 10)", setup="from __main__ import test_torch", number=10) / 10)
-#
-# plt.plot(x, y)
-# plt.plot(x, z)
-# plt.show()
-from im2gps.lib.metric import localization_accuracy
+    log.debug("Adding data to index...")
+    for start, end in __batch_range(len(data), batch_size):
+        batch = data.get_descriptors_by_range(start, end + 1, field='descriptor').astype('float32')
+        index.add(batch)
+    log.debug(f"Index created, number of vectors in index {index.ntotal}")
+    return index
 
-test_file = '/Users/zakharca/Documents/Study/thesis/descriptors/512_flickr_descriptor_test_q.h5'
-val_file = '/Users/zakharca/Documents/Study/thesis/descriptors/512_flickr_descriptor_val_q.h5'
-with DescriptorsTable(test_file, 2048) as test_descriptors, \
-        DescriptorsTable(val_file, 2048) as val_descriptors:
-    localizations = _localize_by_1nn(test_descriptors, val_descriptors, use_torch=True, device=torch.device('cuda:1'),
-                                     query_batch_size=100, db_batch_size=10000)
-    # localizations = _localize_by_1nn(test_descriptors, val_descriptors, use_torch=False, db_batch_size=100)
-    gt_locs = [(desc.lon, desc.lat) for desc in test_descriptors.iterrows()]
-    accuracy = localization_accuracy(gt_locs, localizations.tolist())
-    print(accuracy)
+
+def find_knn(queries: np.ndarray, index: faiss.IndexFlatL2, k: int) -> tp.Tuple[np.ndarray, np.ndarray]:
+    return index.search(queries, k)
+
+
+def localise_by_knn(indices: np.ndarray, db: DescriptorsTable, loc_type) -> tp.List[tp.Tuple[float, float]]:
+    locations = []
+    if loc_type == '1nn':
+        for q in indices:
+            desc = db[q[0]]
+            locations.append((desc.lat, desc.lon))
+    elif loc_type == 'kde':
+        raise NotImplementedError("kde localization not yet implemented")
+    elif loc_type == 'avg':
+        raise NotImplementedError("average localization not yet implemented")
+    return locations
