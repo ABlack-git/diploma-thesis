@@ -20,7 +20,10 @@ def localisation():
               help="With this flag gpu will be used to find nearest neighbours")
 @click.option("--gpu-id", default=-1, help="Gpu id")
 @click.option("--loc-type", type=click.Choice(['1nn', 'kde', 'avg']))
-def test_localization(db_path, test_q_path, k, gpu_enabled, gpu_id, loc_type):
+@click.option("--sigma", type=float, default=None)
+@click.option("-m", type=float, default=None)
+@click.option("--avg-type", type=click.Choice(['weighted', 'regular']), default=None)
+def test_localization(db_path, test_q_path, k, gpu_enabled, gpu_id, loc_type, sigma, m, avg_type):
     cfg: Config = ConfigRepo().get(Config.__name__)
     if db_path is None:
         db_path = cfg.data.datasets.train
@@ -31,10 +34,16 @@ def test_localization(db_path, test_q_path, k, gpu_enabled, gpu_id, loc_type):
         if gpu_id == -1:
             gpu_id = cfg.properties.gpu_id
         assert isinstance(gpu_id, int) and gpu_id >= 0, "gpu_id should be integer greater or equal than 0"
-
+    kwargs = {}
+    if sigma is not None:
+        kwargs['sigma'] = sigma
+    if m is not None:
+        kwargs['m'] = m
+    if avg_type is not None:
+        kwargs['avg_type'] = avg_type
     log.info(f"Starting localization test with following parameters: db_path={db_path}, "
              f"test_q_path={test_q_path}, k={k}, gpu_enabled={gpu_enabled}, gpu_id={gpu_id}")
-    accuracy, error = loc.test_localization(db_path, test_q_path, k, gpu_enabled, gpu_id, loc_type)
+    accuracy, error = loc.test_localization(db_path, test_q_path, k, gpu_enabled, gpu_id, loc_type, **kwargs)
     print('accuracy:')
     print(json.dumps(accuracy, indent=4))
     print('error:')

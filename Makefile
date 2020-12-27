@@ -20,6 +20,11 @@ install-e:
 ## Refresh conda environment
 refresh-conda-env: clean-env create-env
 
+.PHONY: update-env
+## Update conda environment
+update-env:
+	@conda env update -f environment.yml -p .env
+
 .PHONY: dist-wheel
 ## Build wheel artifact
 dist-wheel:

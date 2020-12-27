@@ -45,6 +45,6 @@ def avg_errors(dists: np.ndarray, thresholds=None):
     return error
 
 
-def compute_geo_distance(true_locations: t.List[t.Tuple[float, float]],
-                         predicted_locations: t.List[t.Tuple[float, float]]):
+def compute_geo_distance(true_locations: t.List[t.List[float]],
+                         predicted_locations: t.List[t.List[float]]):
     return haversine_vector(true_locations, predicted_locations, Unit.KILOMETERS)
