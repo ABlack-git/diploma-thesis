@@ -15,6 +15,7 @@ dependencies:
   - omegaconf=2.0.*
   - pyyaml
   - faiss-cpu
+  - scipy
   - pip:
       - flickrapi == 2.4.0
       - haversine == 2.3.0
