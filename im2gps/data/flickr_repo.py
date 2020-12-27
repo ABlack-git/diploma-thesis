@@ -34,6 +34,11 @@ class FlickrPhoto(Document):
     urls = MapField(EmbeddedDocumentField(ImgUrl))
     meta = {'collection': 'flickr'}
 
+    @classmethod
+    def count_photos_in_radius(cls, coords, radius_in_km):
+        earth_avg_radius = 6378.1
+        return cls.objects(geo__coords__geo_within_sphere=[coords, radius_in_km / earth_avg_radius]).count()
+
     @staticmethod
     def from_dict(data: dict) -> 'FlickrPhoto':
         geo_dict = {'coords': [float(data['longitude']), float(data['latitude'])]}

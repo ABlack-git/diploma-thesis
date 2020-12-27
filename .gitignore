@@ -1,5 +1,5 @@
 im2gps/data/pipelines/conf/creds/dev.yaml
-**/outputs/**
+**/output/**
 **/__pycache__/**
 **/.env/**
 **/dev-config/**

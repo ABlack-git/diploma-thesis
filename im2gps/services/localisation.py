@@ -3,6 +3,7 @@ import numpy as np
 import im2gps.lib.localisation as loc
 import im2gps.lib.metric as metric
 from im2gps.data.descriptors import DescriptorsTable
+from im2gps.data.flickr_repo import FlickrPhoto
 
 log = logging.getLogger(__name__)
 
@@ -26,6 +27,14 @@ def test_localization(path_to_db, test_q_path, k, gpu_enabled, gpu_id, loc_type,
         accuracy = metric.localization_accuracy(geo_dist_error)
         error = metric.avg_errors(geo_dist_error)
     return accuracy, error
+
+
+def get_image_density_at_query_loc(file_path):
+    with DescriptorsTable(file_path, 2048) as test_q:
+        queries = test_q.get_descriptors_by_range(0, len(test_q) - 1)
+        locations = [[desc.lon, desc.lat] for desc in queries]
+        densities = [FlickrPhoto.count_photos_in_radius(coords, 1) for coords in locations]
+    return densities
 
 
 def __coords_from_indices(indices, db):
