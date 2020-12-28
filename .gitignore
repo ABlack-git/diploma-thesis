@@ -8,3 +8,4 @@ dist/**
 build/**
 config-dev.yaml
 config-local.yaml
+**/.ipynb_checkpoints/**
