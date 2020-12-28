@@ -44,7 +44,7 @@ def test_localization(db_path, test_q_path, k, gpu_enabled, gpu_id, loc_type, si
         kwargs['avg_type'] = avg_type
     log.info(f"Starting localization test with following parameters: db_path={db_path}, "
              f"test_q_path={test_q_path}, k={k}, gpu_enabled={gpu_enabled}, gpu_id={gpu_id}")
-    accuracy, error = loc.test_localization(db_path, test_q_path, k, gpu_enabled, gpu_id, loc_type, **kwargs)
+    accuracy, error, _ = loc.test_localization(db_path, test_q_path, k, gpu_enabled, gpu_id, loc_type, **kwargs)
     print('accuracy:')
     print(json.dumps(accuracy, indent=4))
     print('error:')
