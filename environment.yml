@@ -16,6 +16,9 @@ dependencies:
   - pyyaml
   - faiss-cpu
   - scipy
+  - jupyterlab
+  - pandas
+  - seaborn
   - pip:
       - flickrapi == 2.4.0
       - haversine == 2.3.0

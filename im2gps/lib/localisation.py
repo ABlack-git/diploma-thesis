@@ -68,8 +68,12 @@ def localise_by_knn(coordinates: np.ndarray, loc_type, dist=None, **kwargs) -> t
             locations.append(loc)
     elif loc_type == 'avg':
         assert 'avg_type' in kwargs, 'avg_type should be provided'
+        if 'm' not in kwargs:
+            m = 1
+        else:
+            m = kwargs['m']
         if kwargs['avg_type'] == 'weighted':
-            weights = (1 / dist)
+            weights = (1 / dist) ** m
         elif kwargs['avg_type'] == 'regular':
             weights = None
         else:
