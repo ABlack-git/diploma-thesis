@@ -1,5 +1,6 @@
 import os
 import typing as t
+import numpy as np
 
 
 class Singelton(type):
@@ -22,3 +23,20 @@ def create_output_folders(path: str, with_filename=False):
         return
     if not os.path.isdir(path):
         os.makedirs(path)
+
+
+def batch_range(size, step):
+    start = 0
+    end = 0
+    while end < size - 1:
+        end = start + step - 1
+        if end > size - 1:
+            end = size - 1
+        yield start, end
+        start = end + 1
+
+
+def normalise_vector(v, axis=-1, order=2):
+    norm = np.atleast_1d(np.linalg.norm(v, order, axis))
+    norm[norm == 0] = 1
+    return v / np.expand_dims(norm, axis)

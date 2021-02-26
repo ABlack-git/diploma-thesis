@@ -1,26 +1,23 @@
 import logging
 import numpy as np
 import typing as tp
-import faiss
+from enum import Enum
 from scipy.stats import multivariate_normal
-from im2gps.data.descriptors import DescriptorsTable
+from im2gps.lib.index import IndexType
 
 log = logging.getLogger(__name__)
 
 
-def __batch_range(size, step):
-    start = 0
-    end = 0
-    while end < size - 1:
-        end = start + step - 1
-        if end > size - 1:
-            end = size - 1
-        yield start, end
-        start = end + 1
+class LocalisationType(Enum):
+    NN = ('1nn',)
+    KDE = ('kde',)
+    AVG = ('avg',)
+
+    def __init__(self, type_str):
+        self.type_str = type_str
 
 
-def _kde(nn_coordinates: np.ndarray, distances: np.ndarray, sigma, m) -> tp.List[float]:
-    weights = (1 / distances) ** m
+def _kde(nn_coordinates: np.ndarray, weights: np.ndarray, sigma) -> tp.List[float]:
     tmp = np.array([weights[j] * multivariate_normal.pdf(nn_coordinates, mean=mu, cov=sigma ** 2 * np.eye(2))
                     for j, mu in enumerate(nn_coordinates)])
     pdf = np.sum(tmp, axis=0)
@@ -35,48 +32,49 @@ def _weighted_average(coordinates: np.ndarray, weights: tp.Union[np.ndarray, Non
     return np.sum(coordinates * w[:, :, np.newaxis], axis=1)
 
 
-def build_index(data: DescriptorsTable, batch_size=50000, gpu_enabled=False, gpu_id=0) -> faiss.IndexFlatL2:
-    log.debug("Creating flatL2 index")
-    index = faiss.IndexFlatL2(data.desc_shape)
-    if gpu_enabled:
-        log.debug(f"Creating GPU index with gpu_id={gpu_id}")
-        resource = faiss.StandardGpuResources()
-        index = faiss.index_cpu_to_gpu(resource, gpu_id, index)
-
-    log.debug("Adding data to index...")
-    for start, end in __batch_range(len(data), batch_size):
-        batch = data.get_descriptors_by_range(start, end + 1, field='descriptor').astype('float32')
-        index.add(batch)
-    log.debug(f"Index created, number of vectors in index {index.ntotal}")
-    return index
+def l2_similarity_weights(dists: np.ndarray, m):
+    eps = 0.0001
+    return (1 / dists + eps) ** m
 
 
-def find_knn(queries: np.ndarray, index: faiss.IndexFlatL2, k: int) -> tp.Tuple[np.ndarray, np.ndarray]:
-    return index.search(queries, k)
+def cosine_similarity_weights(dists: np.ndarray, m):
+    return (dists+1)**m
 
 
-def localise_by_knn(coordinates: np.ndarray, loc_type, dist=None, **kwargs) -> tp.List[tp.List[float]]:
+def localise_by_knn(coordinates: np.ndarray, loc_type, index_type, dist=None, **kwargs) -> tp.List[tp.List[float]]:
     locations = []
-    if loc_type == '1nn':
+    if loc_type == LocalisationType.NN.type_str:
         locations = coordinates.squeeze().tolist()
-    elif loc_type == 'kde':
-        assert 'sigma' in kwargs and 'm' in kwargs, "sigma and m should be be provided for kde"
+    elif loc_type == LocalisationType.KDE.type_str:
+        assert 'sigma' in kwargs and 'm' in kwargs, "parameters sigma and m should be be provided for kde"
         assert dist is not None, "dist should not be none"
         assert dist.shape == coordinates.shape[:2], f"shapes of dist and indices are different"
         for nn_coords, knn_dists in zip(coordinates, dist):
-            loc = _kde(np.array(nn_coords), knn_dists, kwargs['sigma'], kwargs['m'])
+            weights = _get_weights(knn_dists, index_type, kwargs['m'])
+            loc = _kde(np.array(nn_coords), weights, kwargs['sigma'])
             locations.append(loc)
-    elif loc_type == 'avg':
+    elif loc_type == LocalisationType.AVG.type_str:
         assert 'avg_type' in kwargs, 'avg_type should be provided'
-        if 'm' not in kwargs:
-            m = 1
-        else:
-            m = kwargs['m']
+        assert 'm' in kwargs, 'parameter m should be provided'
+
         if kwargs['avg_type'] == 'weighted':
-            weights = (1 / dist) ** m
+            weights = _get_weights(dist, index_type, kwargs['m'])
         elif kwargs['avg_type'] == 'regular':
             weights = None
         else:
             raise ValueError(f'Unknown type of avg_type, {kwargs["avg_type"]}')
+
         locations = _weighted_average(np.array(coordinates), weights=weights).tolist()
+    else:
+        raise ValueError(f'Unknown localisation type {loc_type}')
     return locations
+
+
+def _get_weights(dist, index_type, m):
+    if index_type == IndexType.L2_INDEX:
+        weights = l2_similarity_weights(dist, m)
+    elif index_type == IndexType.COSINE_INDEX:
+        weights = cosine_similarity_weights(dist, m)
+    else:
+        raise ValueError(f'Unknown index type: {index_type}')
+    return weights
