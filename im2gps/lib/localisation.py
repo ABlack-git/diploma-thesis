@@ -17,7 +17,7 @@ class LocalisationType(Enum):
         self.type_str = type_str
 
 
-def __get_grid(centers, sigma, bw=3, n=5) -> np.ndarray:
+def __get_grid(centers, sigma, bw=3, n=3) -> np.ndarray:
     """
     Creates local grid for each point in centers.
     :param centers: Nx2 array of input points
@@ -64,10 +64,10 @@ def cosine_similarity_weights(dists: np.ndarray, m):
     return (dists + 1) ** m
 
 
-def localise_by_knn(coordinates: np.ndarray, loc_type, index_type, dist=None, **kwargs) -> tp.List[tp.List[float]]:
+def localise_by_knn(coordinates: np.ndarray, loc_type, index_type, dist=None, **kwargs) -> np.ndarray:
     locations = []
     if loc_type == LocalisationType.NN.type_str:
-        locations = coordinates.squeeze().tolist()
+        locations = coordinates.squeeze()
     elif loc_type == LocalisationType.KDE.type_str:
         assert 'sigma' in kwargs and 'm' in kwargs, "parameters sigma and m should be be provided for kde"
         assert dist is not None, "dist should not be none"
@@ -77,18 +77,19 @@ def localise_by_knn(coordinates: np.ndarray, loc_type, index_type, dist=None, **
             weights = _get_weights(knn_dists, index_type, kwargs['m'])
             loc = _kde(np.array(nn_coords), weights, kwargs['sigma'])
             locations.append(loc)
+        locations = np.array(locations)
     elif loc_type == LocalisationType.AVG.type_str:
         assert 'avg_type' in kwargs, 'avg_type should be provided'
-        assert 'm' in kwargs, 'parameter m should be provided'
         log.info("Starting AVG")
         if kwargs['avg_type'] == 'weighted':
+            assert 'm' in kwargs, 'parameter m should be provided'
             weights = _get_weights(dist, index_type, kwargs['m'])
         elif kwargs['avg_type'] == 'regular':
             weights = None
         else:
             raise ValueError(f'Unknown type of avg_type, {kwargs["avg_type"]}')
 
-        locations = _weighted_average(np.array(coordinates), weights=weights).tolist()
+        locations = _weighted_average(np.array(coordinates), weights=weights)
     else:
         raise ValueError(f'Unknown localisation type {loc_type}')
     log.info("Localisation done")

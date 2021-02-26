@@ -77,27 +77,9 @@ def test_localization(db_path, test_path, k, gpu_enabled, gpu_id, loc_type, sigm
 
 
 @localisation.command()
-@click.option("--file-path", "-f", default=None, type=str, help='Path to file with queries')
-@click.option("--dataset", "-d", type=click.Choice(['train', 'test', 'val']), default=None)
-@click.option("--save", "-s", is_flag=True, default=False)
 @click.option("--output-path", "-o", default=None, type=str)
-def photo_densities(file_path, dataset, save, output_path):
-    cfg: Config = ConfigRepo().get(Config.__name__)
-    if file_path is None and dataset is not None:
-        if dataset == 'train':
-            file_path = cfg.data.datasets.train
-        elif dataset == 'test':
-            file_path = cfg.data.datasets.test_queries
-        elif dataset == 'val':
-            file_path = cfg.data.datasets.validation_queries
-    else:
-        raise ValueError("Either -f or -d option should be provided")
-    densities = loc.get_image_density_at_query_loc(file_path)
-    if save:
-        if output_path is None:
-            output_path = cfg.properties.output_dir + "/image-densities.json"
-        utils.create_output_folders(output_path, with_filename=True)
-        with open(output_path, 'w') as file_path:
-            json.dump(densities, file_path)
-    else:
-        print(densities)
+@click.option("--start-from", '-s', default=0, type=int)
+@click.option("--save-every", '-i', default=25000, type=int)
+def photo_densities(output_path, start_from, save_every):
+    utils.create_output_folders(output_path, with_filename=True)
+    loc.get_image_density_at_query_loc(output_path, start_from, save_every)
