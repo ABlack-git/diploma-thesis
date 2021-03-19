@@ -1,30 +1,50 @@
 import logging
 import numpy as np
 import typing as tp
-import faiss
-from scipy.stats import multivariate_normal
-from im2gps.data.descriptors import DescriptorsTable
+from enum import Enum
+from KDEpy import NaiveKDE
+from im2gps.lib.index import IndexType
 
 log = logging.getLogger(__name__)
 
 
-def __batch_range(size, step):
-    start = 0
-    end = 0
-    while end < size - 1:
-        end = start + step - 1
-        if end > size - 1:
-            end = size - 1
-        yield start, end
-        start = end + 1
+class LocalisationType(Enum):
+    NN = ('1nn',)
+    KDE = ('kde',)
+    AVG = ('avg',)
+
+    def __init__(self, type_str):
+        self.type_str = type_str
 
 
-def _kde(nn_coordinates: np.ndarray, distances: np.ndarray, sigma, m) -> tp.List[float]:
-    weights = (1 / distances) ** m
-    tmp = np.array([weights[j] * multivariate_normal.pdf(nn_coordinates, mean=mu, cov=sigma ** 2 * np.eye(2))
-                    for j, mu in enumerate(nn_coordinates)])
-    pdf = np.sum(tmp, axis=0)
-    return nn_coordinates[np.argmax(pdf)].tolist()
+def __get_grid(centers, sigma, bw=3, n=3) -> np.ndarray:
+    """
+    Creates local grid for each point in centers.
+    :param centers: Nx2 array of input points
+    :param sigma: sigma of distributions
+    :param bw: bandwidth, number of sigmas to use for grid per axes
+    :param n: number of points per sigma
+    :return: N*(2 * bw * n + 1) * (2 * bw * n + 1) points, because (2 * bw * n + 1) * (2 * bw * n + 1) grid is created
+    for each point in centers.
+    """
+    tl = centers - (bw * sigma, -bw * sigma)  # transform centers of a grid to top left corner
+    # 2 * bw * n + 1 is number of points on each axes of a grid
+    x_space = np.linspace(tl[:, 0], tl[:, 0] + (2 * bw * sigma), num=2 * bw * n + 1).T
+    y_space = np.linspace(tl[:, 1], tl[:, 1] - (2 * bw * sigma), num=2 * bw * n + 1).T
+
+    positions = []
+    for x, y in zip(x_space, y_space):
+        xx, yy = np.meshgrid(x, y)
+        positions.append(np.vstack([xx.ravel(), yy.ravel()]).T)
+
+    return np.concatenate(positions)
+
+
+def _kde(nn_coordinates, weights, sigma):
+    kde: NaiveKDE = NaiveKDE(kernel='gaussian', bw=sigma).fit(data=nn_coordinates, weights=weights)
+    points = __get_grid(nn_coordinates, sigma)
+    y = kde.evaluate(points)
+    return points[np.argmax(y)]
 
 
 def _weighted_average(coordinates: np.ndarray, weights: tp.Union[np.ndarray, None] = None):
@@ -35,48 +55,52 @@ def _weighted_average(coordinates: np.ndarray, weights: tp.Union[np.ndarray, Non
     return np.sum(coordinates * w[:, :, np.newaxis], axis=1)
 
 
-def build_index(data: DescriptorsTable, batch_size=50000, gpu_enabled=False, gpu_id=0) -> faiss.IndexFlatL2:
-    log.debug("Creating flatL2 index")
-    index = faiss.IndexFlatL2(data.desc_shape)
-    if gpu_enabled:
-        log.debug(f"Creating GPU index with gpu_id={gpu_id}")
-        resource = faiss.StandardGpuResources()
-        index = faiss.index_cpu_to_gpu(resource, gpu_id, index)
-
-    log.debug("Adding data to index...")
-    for start, end in __batch_range(len(data), batch_size):
-        batch = data.get_descriptors_by_range(start, end + 1, field='descriptor').astype('float32')
-        index.add(batch)
-    log.debug(f"Index created, number of vectors in index {index.ntotal}")
-    return index
+def l2_similarity_weights(dists: np.ndarray, m):
+    eps = 0.0001
+    return (1 / dists + eps) ** m
 
 
-def find_knn(queries: np.ndarray, index: faiss.IndexFlatL2, k: int) -> tp.Tuple[np.ndarray, np.ndarray]:
-    return index.search(queries, k)
+def cosine_similarity_weights(dists: np.ndarray, m):
+    return (dists + 1) ** m
 
 
-def localise_by_knn(coordinates: np.ndarray, loc_type, dist=None, **kwargs) -> tp.List[tp.List[float]]:
+def localise_by_knn(coordinates: np.ndarray, loc_type, index_type, dist=None, **kwargs) -> np.ndarray:
     locations = []
-    if loc_type == '1nn':
-        locations = coordinates.squeeze().tolist()
-    elif loc_type == 'kde':
-        assert 'sigma' in kwargs and 'm' in kwargs, "sigma and m should be be provided for kde"
+    if loc_type == LocalisationType.NN.type_str:
+        locations = coordinates.squeeze()
+    elif loc_type == LocalisationType.KDE.type_str:
+        assert 'sigma' in kwargs and 'm' in kwargs, "parameters sigma and m should be be provided for kde"
         assert dist is not None, "dist should not be none"
         assert dist.shape == coordinates.shape[:2], f"shapes of dist and indices are different"
+        log.info("Starting KDE")
         for nn_coords, knn_dists in zip(coordinates, dist):
-            loc = _kde(np.array(nn_coords), knn_dists, kwargs['sigma'], kwargs['m'])
+            weights = _get_weights(knn_dists, index_type, kwargs['m'])
+            loc = _kde(np.array(nn_coords), weights, kwargs['sigma'])
             locations.append(loc)
-    elif loc_type == 'avg':
+        locations = np.array(locations)
+    elif loc_type == LocalisationType.AVG.type_str:
         assert 'avg_type' in kwargs, 'avg_type should be provided'
-        if 'm' not in kwargs:
-            m = 1
-        else:
-            m = kwargs['m']
+        log.info("Starting AVG")
         if kwargs['avg_type'] == 'weighted':
-            weights = (1 / dist) ** m
+            assert 'm' in kwargs, 'parameter m should be provided'
+            weights = _get_weights(dist, index_type, kwargs['m'])
         elif kwargs['avg_type'] == 'regular':
             weights = None
         else:
             raise ValueError(f'Unknown type of avg_type, {kwargs["avg_type"]}')
-        locations = _weighted_average(np.array(coordinates), weights=weights).tolist()
+
+        locations = _weighted_average(np.array(coordinates), weights=weights)
+    else:
+        raise ValueError(f'Unknown localisation type {loc_type}')
+    log.info("Localisation done")
     return locations
+
+
+def _get_weights(dist, index_type, m):
+    if index_type == IndexType.L2_INDEX:
+        weights = l2_similarity_weights(dist, m)
+    elif index_type == IndexType.COSINE_INDEX:
+        weights = cosine_similarity_weights(dist, m)
+    else:
+        raise ValueError(f'Unknown index type: {index_type}')
+    return weights

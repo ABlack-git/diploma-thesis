@@ -11,6 +11,8 @@ class GeoInfo(EmbeddedDocument):
     context = IntField(required=True, default=0)
     place_id = StringField(required=False)
     woe_id = LongField(required=False)
+    region = StringField(required=False)
+    city_part = StringField(required=False)
 
 
 class ImgUrl(EmbeddedDocument):

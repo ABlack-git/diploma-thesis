@@ -20,6 +20,7 @@ dependencies:
   - pandas
   - seaborn
   - pip:
+      - KDEpy
       - flickrapi == 2.4.0
       - haversine == 2.3.0
       - resources/cirtorch-0.0.1-py3-none-any.whl
