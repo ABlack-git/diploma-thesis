@@ -10,7 +10,7 @@ dependencies:
   - mongoengine=0.20.0
   - pillow=8.0.1
   - pytables=3.6.1
-  - pytorch=1.1.0
+  - pytorch=1.8.0
   - click=7.0
   - omegaconf=2.0.*
   - pyyaml
@@ -19,6 +19,7 @@ dependencies:
   - jupyterlab
   - pandas
   - seaborn
+  - pytest
   - pip:
       - KDEpy
       - flickrapi == 2.4.0
