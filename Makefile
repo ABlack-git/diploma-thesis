@@ -37,6 +37,11 @@ clean-dist:
 	-@${PYTHON} setup.py clean --all
 	-@rm -rf {build,dist,*.egg-info}
 
+.PHONY: run-tests
+## Run unit tests
+run-tests:
+	-@${PYTHON} -m pytest -v
+
 .PHONY: help
 # Adapted by David Prihoda from: https://raw.githubusercontent.com/nestauk/patent_analysis/3beebda/Makefile
 ## Auto-generated help
