@@ -1,7 +1,7 @@
 import pytest
 import torch
-import im2gps.lib.nn.functional as f
-from im2gps.lib.nn.enum import NNEnum
+import im2gps.core.nn.functional as f
+from im2gps.core.nn.enum import NNEnum
 
 
 class TestHaversine:

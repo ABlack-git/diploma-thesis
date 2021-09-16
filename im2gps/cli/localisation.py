@@ -1,13 +1,19 @@
 import click
 import json
-import im2gps.utils as utils
 import logging
-import im2gps.services.localisation as loc
+from click_option_group import OptionGroup
+
+from im2gps.services.localisation import ModelParameters, BenchmarkParameters, perform_localisation_benchmark
 from im2gps.conf.config import ConfigRepo, Config
-from im2gps.lib.index import IndexType
-from im2gps.lib.localisation import LocalisationType
+from im2gps.core.index import IndexType, IndexConfig
+from im2gps.core.localisation import LocalisationType
+from im2gps.data.descriptors import DatasetEnum
 
 log = logging.getLogger(__name__)
+
+model_config = OptionGroup("Model parameters", help="Parameters for localisation model")
+index_config = OptionGroup("Index parameters", help="Parameters used for building faiss index")
+test_config = OptionGroup("Test options", help="Parameters for running test")
 
 
 @click.group()
@@ -16,70 +22,78 @@ def localisation():
 
 
 @localisation.command()
-@click.option("--db-path", '-d', default=None, type=str, help="Path to database. If this option is not provided, "
-                                                              "application will try to load this from config")
-@click.option("--test-path", '-t', default=None, type=str, help="Path to test set. If this option is not provided, "
-                                                                "application will try to load this from config")
-@click.option("-k", default=1, help="Number of nearest neighbours")
-@click.option("--gpu-enabled", '-g', is_flag=True, default=False,
-              help="With this flag gpu will be used to find nearest neighbours")
-@click.option("--gpu-id", default=-1, help="ID of GPU to use. If this option is not provided, "
-                                           "application will try to load this from config")
-@click.option("--loc-type", '-l',
-              type=click.Choice([LocalisationType.NN.type_str, LocalisationType.KDE.type_str,
-                                 LocalisationType.AVG.type_str]),
-              help="Chose which localisation type to use")
-@click.option("--sigma", type=float, default=None,
-              help="Parameter required for KDE. This corresponds to standard deviation of distribution used in KDE")
-@click.option("-m", type=float, default=None, help="Parameter required for kde and avg localisation")
-@click.option("--avg-type", type=click.Choice(['weighted', 'regular']), default=None,
-              help="Chose which average type to use in case of avg localisation")
-@click.option("--index-type", '-i', type=click.Choice([IndexType.L2_INDEX.type_str, IndexType.COSINE_INDEX.type_str]),
-              default=IndexType.L2_INDEX.type_str,
-              help="Chose which index type to use. This will affect how distance between two descriptors is measured. "
-                   f"Default value is {IndexType.L2_INDEX.type_str}")
-def test_localization(db_path, test_path, k, gpu_enabled, gpu_id, loc_type, sigma, m, avg_type, index_type):
+@model_config.option("--loc-type", '-l',
+                     type=click.Choice([enum.value for enum in LocalisationType]),
+                     default=LocalisationType.NN.value,
+                     help=f"Chose which localisation type to use. Default value is {LocalisationType.NN}")
+@model_config.option("-k", default=1, help="Number of nearest neighbours. Default value is 1")
+@model_config.option("--sigma", type=float, default=None,
+                     help="Parameter required for KDE. This corresponds to standard deviation of distribution used "
+                          "in KDE. Default value is None")
+@model_config.option("-m", type=float, default=None, help="Parameter required for kde and avg localisation")
+@index_config.option("--index-type", '-i', type=click.Choice([enum.value for enum in IndexType]),
+                     default=IndexType.L2_INDEX.value,
+                     help="Chose which index type to use. This will affect how distance between two descriptors i"
+                          f"s measured. Default value is {IndexType.L2_INDEX.value}")
+@index_config.option("--gpu-id", default=-1, help="ID of GPU to use. Default value is -1")
+@index_config.option("--gpu-enabled", '-g', is_flag=True, default=False,
+                     help="If this flag is set index will be built on GPU. Default value is False")
+@test_config.option("--queries", "-q", type=click.Choice([enum.value for enum in DatasetEnum]),
+                    default=DatasetEnum.TEST_QUERY.value,
+                    help=f"Parameter to specify which dataset to use as queries. "
+                         f"Default value is {DatasetEnum.TEST_QUERY.value}")
+@test_config.option("--extended-results", "-e", is_flag=True, default=False,
+                    help="When this flag is set results will contain per image information, however additional "
+                         "information will be only saved to filed and will not be displayed")
+@test_config.option("--save", "-s", is_flag=True, default=False, help="If this flag is set, results will be saved on "
+                                                                      "disk")
+@test_config.option("--path", "-p", type=str, help="Path to where save results")
+@click.option("--model-config", is_flag=True, default=False,
+              help="If this flag is set will load model configuration from config file, ignoring provided parameters.")
+@click.option("--index-config", is_flag=True, default=False,
+              help="If this flag is set will load index configuration from config file, ignoring provided parameters.")
+@click.option("--test-config", is_flag=True, default=False,
+              help="If this flag is set will load test configuration from config file, ignoring provided parameters.")
+def test_localisation(**params):
     cfg: Config = ConfigRepo().get(Config.__name__)
-    if db_path is None:
-        db_path = cfg.data.datasets.train
-    if test_path is None:
-        test_path = cfg.data.datasets.test_queries
-    assert isinstance(k, int) and k > 0, "k should be integer greater than 0"
+    log.debug(f"Running test-localisation, input parameters: {params}")
 
-    if gpu_enabled:
-        if gpu_id == -1:
-            gpu_id = cfg.properties.gpu_id
-        assert isinstance(gpu_id, int) and gpu_id >= 0, "gpu_id should be integer greater or equal than 0"
-
-    kwargs = {}
-    if sigma is not None:
-        kwargs['sigma'] = sigma
-    if m is not None:
-        kwargs['m'] = m
-    if avg_type is not None:
-        kwargs['avg_type'] = avg_type
-    log.info(f"Starting localization test with following parameters: db_path={db_path}, "
-             f"test_q_path={test_path}, k={k}, gpu_enabled={gpu_enabled}, gpu_id={gpu_id}")
-
-    if index_type == IndexType.L2_INDEX.type_str:
-        index_type = IndexType.L2_INDEX
-    elif index_type == IndexType.COSINE_INDEX.type_str:
-        index_type = IndexType.COSINE_INDEX
+    model_params = ModelParameters()
+    if params['model_config']:
+        model_params.localisation_type = LocalisationType(cfg.localisation_model.localisation_type)
+        model_params.k = cfg.localisation_model.k
+        model_params.m = cfg.localisation_model.m
+        model_params.sigma = cfg.localisation_model.sigma
     else:
-        raise ValueError(f"Unknown index type: {index_type}")
+        model_params.localisation_type = LocalisationType(params['loc_type'])
+        model_params.k = params['k']
+        model_params.sigma = params['sigma']
+        model_params.m = params['m']
 
-    accuracy, error, _ = loc.test_localization(db_path, test_path, k, gpu_enabled, gpu_id, loc_type, index_type,
-                                               **kwargs)
-    print('accuracy:')
-    print(json.dumps(accuracy, indent=4))
-    print('error:')
-    print(json.dumps(error, indent=4))
+    index_params = IndexConfig()
+    if params['index_config']:
+        index_params.index_type = IndexType(cfg.index_config.index_type)
+        index_params.gpu_enabled = cfg.index_config.gpu_enabled
+        index_params.gpu_id = cfg.index_config.gpu_id
+    else:
+        index_params.index_type = IndexType(params['index_type'])
+        index_params.gpu_enabled = params['gpu_enabled']
+        index_params.gpu_id = params['gpu_id']
 
+    test_params = BenchmarkParameters()
 
-@localisation.command()
-@click.option("--output-path", "-o", default=None, type=str)
-@click.option("--start-from", '-s', default=0, type=int)
-@click.option("--save-every", '-i', default=25000, type=int)
-def photo_densities(output_path, start_from, save_every):
-    utils.create_output_folders(output_path, with_filename=True)
-    loc.get_image_density_at_query_loc(output_path, start_from, save_every)
+    if params['test_config']:
+        test_params.query_dataset = DatasetEnum(cfg.test_config.query_dataset)
+        test_params.save_result = cfg.test_config.save_results
+        test_params.save_path = cfg.test_config.save_path
+        test_params.extended_results = cfg.test_config.extended_results
+    else:
+        test_params.query_dataset = DatasetEnum(params['queries'])
+        test_params.save_result = params['save']
+        test_params.save_path = params['path']
+        test_params.extended_results = params['extended_results']
+
+    result = perform_localisation_benchmark(model_params, index_params, test_params)
+
+    print(json.dumps({"accuracy": result.accuracy, "errors": result.errors,
+                      "predictions_by_dist": result.predictions_by_dist}, indent=4))

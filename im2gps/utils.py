@@ -1,6 +1,7 @@
 import os
 import typing as t
 import numpy as np
+import psutil
 
 
 class Singelton(type):
@@ -40,3 +41,8 @@ def normalise_vector(v, axis=-1, order=2):
     norm = np.atleast_1d(np.linalg.norm(v, order, axis))
     norm[norm == 0] = 1
     return v / np.expand_dims(norm, axis)
+
+
+def get_memory_usage():
+    process = psutil.Process(os.getpid())
+    return process.memory_info().rss * 0.000000001

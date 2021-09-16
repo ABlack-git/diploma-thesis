@@ -14,6 +14,19 @@ class GeoInfo(EmbeddedDocument):
     region = StringField(required=False)
     city_part = StringField(required=False)
 
+    @property
+    def coordinates(self):
+        return self.coords['coordinates']
+
+    @coordinates.setter
+    def coordinates(self, coord_dict: dict):
+        if 'lat' not in coord_dict or 'lng' not in coord_dict:
+            raise ValueError("error setting coordinates, lat or lng is not in dict")
+        self.coords = [coord_dict['lng'], coord_dict['lat']]
+
+    def set_coordinates(self, lat, lng):
+        self.coords = [lng, lat]
+
 
 class ImgUrl(EmbeddedDocument):
     url_types = ('m', 'c', 'l', 'o')

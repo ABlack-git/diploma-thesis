@@ -1,27 +1,39 @@
-data:
-  data_directory: /Users/zakharca/Documents/Study/thesis/data
-  creds:
-    flickr:
-      key: ???
-      secret: ???
-  db:
-    host: localhost
-    port: 51998
-    database: im2gps
-  datasets:
-    split_file: 'resources/datasets.json'
-    train: ???
-    train_queries: ???
-    test_queries: ???
-    validation_queries: ???
+credentials:
+  flickr:
+    key: ???
+    secret: ???
+db:
+  host: localhost
+  port: 51998
+  database: im2gps
+
 
 cirtorch:
   model_dir: model_dir
   img_resolution: 512
+  gpu_id: ???
+
+localisation_model:
+  localisation_type: ???
+  sigma: ???
+  m: ???
+  k: ???
+
+index_config:
+  index_type: ???
+  gpu_enabled: ???
+  gpu_id: ???
+
+test_config:
+  query_dataset: "test_query"
+  extended_results: false
+  save_results: false
+  save_path: ${properties.output_dir}/localisation-test.json
 
 properties:
-  gpu_id: 0
   output_dir: output
+  data_directory: /Users/zakharca/Documents/Study/thesis/data
+  split_file: 'resources/datasets.json'
 
 
 checkpoints:

@@ -7,7 +7,7 @@ import time
 from typing import Generator
 from dataclasses import dataclass, field
 
-from im2gps.conf.configschema import DataConfig
+from im2gps.conf.configschema import CredsConfig
 from im2gps.exceptions import FlickrClientError, DownloadError
 
 log = logging.getLogger(__name__)
@@ -35,8 +35,8 @@ class FlickerClient:
     which solves the mentioned problem by splitting requests by date range.  
     """
 
-    def __init__(self, cfg: DataConfig):
-        self.flickr = flickrapi.FlickrAPI(api_key=cfg.creds.flickr.key, secret=cfg.creds.flickr.secret,
+    def __init__(self, cfg: CredsConfig):
+        self.flickr = flickrapi.FlickrAPI(api_key=cfg.flickr.key, secret=cfg.flickr.secret,
                                           format='parsed-json')
         self.num_retries = 5
 

@@ -1,5 +1,6 @@
 import click
 from im2gps.data.pipelines import flickr, descriptors, splitdata
+import im2gps.data.migration.migrate_splits as ms
 
 
 @click.group()
@@ -36,3 +37,10 @@ def get_descriptors():
 def split_datasets():
     """Split photos into datasets"""
     splitdata.split_data()
+
+
+@data.command()
+@click.option("--split-file", "-f", help="Path to resource file")
+def migrate_splits(split_file):
+    """Migrate datasets splits to mongodb"""
+    ms.migrate_splits(split_file)

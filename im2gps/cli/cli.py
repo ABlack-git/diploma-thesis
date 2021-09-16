@@ -24,7 +24,7 @@ def entry_point(config_path, no_db, verbosity, show_config):
     config.save_configs(cfg)
     if not no_db:
         log.debug("Connecting to database")
-        connect(db=cfg.data.db.database, host=cfg.data.db.host, port=cfg.data.db.port)
+        connect(db=cfg.db.database, host=cfg.db.host, port=cfg.db.port)
     if show_config:
         print(OmegaConf.to_yaml(cfg))
 

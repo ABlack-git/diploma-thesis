@@ -3,7 +3,7 @@ from omegaconf import MISSING
 from typing import List
 
 
-# ----- DATA CONFIG ----- #
+# ----- CREDENTIALS CONFIG ----- #
 @dataclass
 class FlickrCreds:
     key: str = MISSING
@@ -15,6 +15,7 @@ class CredsConfig:
     flickr: FlickrCreds = MISSING
 
 
+# ----- DB CONFIG ----- #
 @dataclass
 class DBConfig:
     host: str = MISSING
@@ -22,35 +23,20 @@ class DBConfig:
     database: str = MISSING
 
 
-@dataclass
-class DatasetsConfig:
-    split_file: str = MISSING
-    train: str = MISSING
-    train_queries: str = MISSING
-    test_queries: str = MISSING
-    validation_queries: str = MISSING
-
-
-@dataclass
-class DataConfig:
-    data_directory: str = MISSING
-    creds: CredsConfig = MISSING
-    db: DBConfig = MISSING
-    datasets: DatasetsConfig = MISSING
-
-
 # ----- CIRTORCH CONFIG ----- #
 @dataclass
 class CirtorchConfig:
     model_dir: str = MISSING
     img_resolution: int = MISSING
+    gpu_id: int = MISSING
 
 
 # ----- PROPERTIES CONFIG ----- #
 @dataclass
 class PropertiesConfig:
-    gpu_id: int = MISSING
     output_dir: str = MISSING
+    data_directory: str = MISSING
+    split_file: str = MISSING
 
 
 # ----- CHECKPOINTS CONFIG ----- #
@@ -89,10 +75,40 @@ class FiltersConfig:
     flickr: FlickFilter = MISSING
 
 
+# ----- MODEL CONFIG ----- #
+@dataclass
+class ModelConfig:
+    localisation_type: str = MISSING
+    sigma: float = MISSING
+    m: float = MISSING
+    k: int = MISSING
+
+
+# ----- INDEX CONFIG ----- #
+@dataclass
+class IndexConfig:
+    index_type: str = MISSING
+    gpu_enabled: bool = MISSING
+    gpu_id: int = MISSING
+
+
+# ----- TEST CONFIG ----- #
+@dataclass
+class LocalisationTestConfig:
+    query_dataset: str = MISSING
+    extended_results: bool = MISSING
+    save_results: bool = MISSING
+    save_path: bool = MISSING
+
+
 @dataclass
 class Config:
-    data: DataConfig = MISSING
+    credentials: CredsConfig = MISSING
+    db: DBConfig = MISSING
     cirtorch: CirtorchConfig = MISSING
+    localisation_model: ModelConfig = MISSING
+    index_config: IndexConfig = MISSING
+    test_config: LocalisationTestConfig = MISSING
     properties: PropertiesConfig = MISSING
     checkpoints: CheckpointsConfig = MISSING
     filters: FiltersConfig = MISSING
