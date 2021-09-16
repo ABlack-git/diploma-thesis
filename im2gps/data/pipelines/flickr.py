@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 
 def collect_photos_metadata(checkpoint_type: str = None):
     cfg: Config = ConfigRepo().get(Config.__name__)
-    flickr_client = FlickerClient(cfg.data)
+    flickr_client = FlickerClient(cfg.credentials)
     load_cfg = _get_metadata_checkpoint(cfg.checkpoints, checkpoint_type)
     for i, photoDto in enumerate(flickr_client.search_photos(
             start_date=load_cfg.start_date,
@@ -42,7 +42,7 @@ def collect_photos_metadata(checkpoint_type: str = None):
 def download_photos(checkpoint_type, to_skip):
     cfg: Config = ConfigRepo().get(Config.__name__)
 
-    root_dir = cfg.data.data_directory
+    root_dir = cfg.properties.data_directory
     if not os.path.exists(root_dir):
         os.makedirs(root_dir)
 
@@ -70,7 +70,9 @@ def download_photos(checkpoint_type, to_skip):
                 if not os.path.exists(folder):
                     os.makedirs(folder)
 
-                _, file_name = os.path.split(img_url.url)
+                extension = os.path.split(img_url.url)[1].split(".")[1]
+                file_name = f"{photo.photo_id}.{extension}"
+
                 path = os.path.join(root_dir, folder, file_name)
 
                 try:

@@ -1,82 +1,90 @@
+import json
 import logging
 import numpy as np
-import im2gps.lib.localisation as loc
-import im2gps.lib.metric as metric
-from im2gps.lib.index import IndexBuilder, Index, IndexType
-from im2gps.data.descriptors import DescriptorsTable
-from im2gps.data.flickr_repo import FlickrPhoto
+from dataclasses import dataclass, field, asdict
+
+import im2gps.core.metric as metric
+from im2gps.core.index import IndexConfig
+from im2gps.core.localisation import LocalisationModel, LocalisationType
+from im2gps.data.descriptors import MongoDescriptor, DatasetEnum
+import im2gps.utils as utils
 
 log = logging.getLogger(__name__)
 
 
-def test_localization(path_to_db, test_q_path, k, gpu_enabled, gpu_id, loc_type, index_type: IndexType, **kwargs):
-    with DescriptorsTable(path_to_db, 2048) as db, \
-            DescriptorsTable(test_q_path, 2048) as test_q:
-        index = IndexBuilder(db, index_type=index_type, gpu_enabled=gpu_enabled, gpu_id=gpu_id).build()
-        db_coords = np.array([[desc.lat, desc.lon] for desc in db])
-        q_coords = np.array([[desc.lat, desc.lon] for desc in test_q])
-        queries_array = np.array([q.descriptor for q in test_q]).astype('float32')
-        locations = localise(index, db_coords, queries_array, k, loc_type, index_type, **kwargs)
-        return compute_statistics(q_coords, locations)
+@dataclass
+class ModelParameters:
+    localisation_type: LocalisationType = None
+    sigma: float = None
+    m: float = None
+    k: int = None
 
 
-def get_image_density_at_query_loc(output_path, start_from, save_every=25000):
-    import pandas as pd
-    import os
-    from tqdm import tqdm
-    from dataclasses import make_dataclass
-
-    file_count = (start_from + 1) // save_every
-    base_name = os.path.basename(output_path)
-    dir_name = os.path.dirname(output_path)
-    file_path = os.path.join(dir_name, base_name.split(".")[0] + "-{}." + base_name.split(".")[1])
-    Density = make_dataclass("Density",
-                             [("photo_id", int), ("density_10m", int), ("density_100m", int), ("density_500m", int)])
-    densities = []
-    pbar = tqdm(total=FlickrPhoto.objects.count(), position=1, initial=start_from)
-    pbar_logger = tqdm(total=0, position=2, bar_format='{desc}')
-    pbar_logger.set_description_str(f"Processing batch number {file_count}. "
-                                    f"Output file {file_path.format(file_count)}")
-
-    cursor = FlickrPhoto.objects.order_by('date_upload') \
-        .skip(start_from).only('photo_id', 'geo.coords').timeout(False)
-
-    for i, photo in enumerate(cursor):
-        coords = photo.geo.coords['coordinates']
-        density_10m = FlickrPhoto.count_photos_in_radius(coords, 0.01)
-        density_100m = FlickrPhoto.count_photos_in_radius(coords, 0.1)
-        density_500m = FlickrPhoto.count_photos_in_radius(coords, 0.5)
-        densities.append(Density(photo.photo_id, density_10m, density_100m, density_500m))
-        if (i + 1) % save_every == 0:
-            pd.DataFrame(densities).to_csv(file_path.format(file_count))
-            densities = []
-            file_count += 1
-            pbar_logger.set_description_str(f"Processing batch number {file_count}. "
-                                            f"Output file {file_path.format(file_count)}")
-        pbar.update(1)
-
-    pbar.close()
-    del cursor
-
-    pd.DataFrame(densities).to_csv(file_path.format(file_count))
-    pbar_logger.set_description_str("Finished last batch")
+@dataclass
+class BenchmarkParameters:
+    query_dataset: DatasetEnum = None
+    extended_results: bool = None
+    save_result: bool = None
+    save_path: str = None
 
 
-def localise(index: Index, db_coords: np.ndarray, queries: np.ndarray, k, loc_type, index_type: IndexType, **kwargs):
-    log.info(f"Finding {k} nearest neighbours of queries")
-    preprocessed = kwargs['preprocessed'] if 'preprocessed' in kwargs else False
-    dists, indices = index.search(queries, k, preprocessed=preprocessed)
-    knn_coords = indices_to_coords(indices, db_coords)
-    localizations = loc.localise_by_knn(knn_coords, loc_type, index_type, dist=dists, **kwargs)
-    return localizations
+@dataclass
+class BenchmarkResult:
+    accuracy: dict = None
+    errors: dict = None
+    predictions_by_dist: dict = None
+    img_dist_error: dict = field(default_factory=dict)
+    img_predicted_coords: dict = field(default_factory=dict)
 
 
-def compute_statistics(q_coords: np.ndarray, locations: np.ndarray):
-    geo_dist_error = metric.compute_geo_distance(q_coords, locations)
-    accuracy = metric.localization_accuracy(geo_dist_error)
-    error = metric.avg_errors(geo_dist_error)
-    return accuracy, error, geo_dist_error
+def perform_localisation_benchmark(model_params: ModelParameters, index_config: IndexConfig,
+                                   benchmark_params: BenchmarkParameters) -> BenchmarkResult:
+    model = LocalisationModel(model_params.localisation_type, index_config, model_params.sigma,
+                              model_params.m, model_params.k)
+    log.info(f"Localisation model: {repr(model)}")
+
+    log.info("Getting training data")
+    data = MongoDescriptor.get_as_data_dict(DatasetEnum.DATABASE)
+    log.info("Finished getting training data")
+    log.debug(f"Current memory usage: {utils.get_memory_usage():.2f}GB")
+
+    log.info(f"Fitting model...")
+    model.fit(data)
+    log.info(f"Model is trained.")
+
+    log.info(f"Getting query data")
+    query_data = MongoDescriptor.get_as_data_dict(dataset=benchmark_params.query_dataset)
+    log.info("Finished getting query data")
+    log.debug(f"Current memory usage: {utils.get_memory_usage():.2f}GB")
+
+    log.info("Getting predictions...")
+    predicted_locations = model.predict(query_data['descriptors'])
+    log.info("Finished getting predictions")
+
+    if benchmark_params.extended_results:
+        img_ids = query_data['ids']
+    else:
+        img_ids = None
+
+    result = _get_benchmark_results(predicted_locations, query_data['coordinates'], img_ids)
+
+    if benchmark_params.save_result:
+        log.info("Saving test results")
+        with open(benchmark_params.save_path, 'w') as f:
+            json.dump(asdict(result), f)
+
+    return result
 
 
-def indices_to_coords(indices, db: np.ndarray):
-    return db[indices]
+def _get_benchmark_results(pred_locations, true_locations, image_ids: np.ndarray = None) -> BenchmarkResult:
+    result = BenchmarkResult()
+    distance_err = metric.compute_geo_distance(true_locations, pred_locations)
+    result.accuracy = metric.localization_accuracy(distance_err)
+    result.errors = metric.avg_errors(distance_err)
+    result.predictions_by_dist = metric.distribution_of_predictions_by_distance(distance_err)
+    if image_ids is not None:
+        for img_id, dist_err, pred_loc in zip(image_ids, distance_err, pred_locations):
+            img_id = int(img_id)
+            result.img_dist_error[img_id] = dist_err
+            result.img_predicted_coords[img_id] = pred_loc.tolist()
+    return result
