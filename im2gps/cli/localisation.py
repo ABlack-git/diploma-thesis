@@ -35,6 +35,8 @@ def localisation():
                      default=IndexType.L2_INDEX.value,
                      help="Chose which index type to use. This will affect how distance between two descriptors i"
                           f"s measured. Default value is {IndexType.L2_INDEX.value}")
+@index_config.option("--index-dir", type=str, help="Provide path to the directory where index.if file is stored",
+                     default=None)
 @index_config.option("--gpu-id", default=-1, help="ID of GPU to use. Default value is -1")
 @index_config.option("--gpu-enabled", '-g', is_flag=True, default=False,
                      help="If this flag is set index will be built on GPU. Default value is False")
@@ -72,10 +74,12 @@ def test_localisation(**params):
 
     index_params = IndexConfig()
     if params['index_config']:
+        index_params.index_dir = cfg.index_config.index_dir
         index_params.index_type = IndexType(cfg.index_config.index_type)
         index_params.gpu_enabled = cfg.index_config.gpu_enabled
         index_params.gpu_id = cfg.index_config.gpu_id
     else:
+        index_params.index_dir = params['index_dir']
         index_params.index_type = IndexType(params['index_type'])
         index_params.gpu_enabled = params['gpu_enabled']
         index_params.gpu_id = params['gpu_id']

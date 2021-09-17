@@ -20,6 +20,7 @@ localisation_model:
   k: ???
 
 index_config:
+  index_dir: ???
   index_type: ???
   gpu_enabled: ???
   gpu_id: ???
@@ -33,6 +34,7 @@ test_config:
 properties:
   output_dir: output
   data_directory: /Users/zakharca/Documents/Study/thesis/data
+  indices_dir: ???
   split_file: 'resources/datasets.json'
 
 

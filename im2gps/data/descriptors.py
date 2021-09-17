@@ -24,7 +24,10 @@ class MongoDescriptor(me.Document):
 
     @property
     def descriptor(self):
-        return pickle.loads(self.binary_descriptor)
+        if self.binary_descriptor is not None:
+            return pickle.loads(self.binary_descriptor)
+        else:
+            return None
 
     @descriptor.setter
     def descriptor(self, descriptor_array: np.ndarray):
@@ -44,6 +47,32 @@ class MongoDescriptor(me.Document):
 
     def set_coordinates(self, lng, lat):
         self.coords = [lng, lat]
+
+    @classmethod
+    def get_ids_and_coords(cls, dataset: DatasetEnum) -> dict:
+        if isinstance(dataset, DatasetEnum):
+            objects = cls.objects(dataset=dataset)
+        else:
+            raise ValueError(f"dataset should be one of DatasetEnum, was {dataset}")
+        data = dict()
+        total = objects.count()
+
+        log.debug(f"Getting {dataset.value} dataset from db. Total number of documents in db {total}")
+
+        ids = np.zeros(shape=total, dtype=int)
+        coordinates = np.zeros(shape=(total, 2))
+
+        batch_size = 100000
+        for i, descriptor in enumerate(objects.batch_size(batch_size).only('photo_id', 'coords')):
+            ids[i] = descriptor.photo_id
+            coordinates[i, :] = descriptor.coordinates
+
+            if (i + 1) % batch_size == 0:
+                log.debug(f"Processed {i + 1} documents")
+
+        data['ids'] = ids
+        data['coordinates'] = coordinates
+        return data
 
     @classmethod
     def get_as_data_dict(cls, dataset: DatasetEnum = None) -> dict:
