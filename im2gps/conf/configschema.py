@@ -36,6 +36,7 @@ class CirtorchConfig:
 class PropertiesConfig:
     output_dir: str = MISSING
     data_directory: str = MISSING
+    indices_dir: str = MISSING
     split_file: str = MISSING
 
 
@@ -87,6 +88,7 @@ class ModelConfig:
 # ----- INDEX CONFIG ----- #
 @dataclass
 class IndexConfig:
+    index_dir: str = MISSING
     index_type: str = MISSING
     gpu_enabled: bool = MISSING
     gpu_id: int = MISSING

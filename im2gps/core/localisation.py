@@ -75,8 +75,12 @@ class LocalisationModel:
             self._coordinate_map = {photo_id: coordinate for photo_id, coordinate in
                                     zip(data['ids'], data['coordinates'])}
             if isinstance(self._index, IndexConfig):
-                log.debug("Building index...")
-                self._index = IndexBuilder(data['descriptors'], data['ids'], self._index).build()
+                if self._index.index_dir is not None:
+                    log.debug("Index directory was provided, will load index from disk")
+                    self._index = IndexBuilder(None, None, self._index).build()
+                else:
+                    log.debug("Building index...")
+                    self._index = IndexBuilder(data['descriptors'], data['ids'], self._index).build()
             elif isinstance(self._index, Index):
                 log.debug(f"Using provided index {repr(self._index)}")
             else:

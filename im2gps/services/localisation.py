@@ -43,9 +43,15 @@ def perform_localisation_benchmark(model_params: ModelParameters, index_config: 
                               model_params.m, model_params.k)
     log.info(f"Localisation model: {repr(model)}")
 
-    log.info("Getting training data")
-    data = MongoDescriptor.get_as_data_dict(DatasetEnum.DATABASE)
-    log.info("Finished getting training data")
+    if index_config.index_dir is None:
+        log.info("Getting training data")
+        data = MongoDescriptor.get_as_data_dict(DatasetEnum.DATABASE)
+        log.info("Finished getting training data")
+    else:
+        log.info("Getting ids and coords for training data")
+        data = MongoDescriptor.get_ids_and_coords(DatasetEnum.DATABASE)
+        log.info("Finished getting training data")
+
     log.debug(f"Current memory usage: {utils.get_memory_usage():.2f}GB")
 
     log.info(f"Fitting model...")
