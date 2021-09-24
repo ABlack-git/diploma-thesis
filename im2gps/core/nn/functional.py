@@ -183,3 +183,7 @@ def haversine_distance(x, y, units=NNEnum.HAV_KILOMETERS):
         return 2 * radius * torch.asin(torch.sqrt(x))
     elif units == NNEnum.HAV_METERS:
         return 2 * radius * torch.asin(torch.sqrt(x)) * 1000
+
+
+def l2_normalization(x, eps=1e-6):
+    return x / (torch.norm(x, p=2, dim=1, keepdim=True) + eps).expand_as(x)

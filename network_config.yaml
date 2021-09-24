@@ -1,0 +1,25 @@
+network:
+  restore_from: "output/test_net.pth"
+  name: "im2gps-test-network"
+  transform_only: false
+  transformation_layers:
+    - Linear:
+        in_features: 10
+        out_features: 10
+        bias: true
+    - ReLU:
+        inplace: true
+    - Linear:
+        in_features: 10
+        out_features: 10
+    - L2NormalizationLayer:
+
+  custom_layers:
+    - Descriptors2Weights:
+        m: 3
+        dist_type: l2_dist
+    - KDE:
+        sigma: 0.001
+
+
+

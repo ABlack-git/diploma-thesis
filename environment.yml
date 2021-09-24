@@ -25,6 +25,7 @@ dependencies:
   - scikit-learn
   - plotly
   - psutil
+  - numpy
   - pip:
       - KDEpy
       - flickrapi == 2.4.0
