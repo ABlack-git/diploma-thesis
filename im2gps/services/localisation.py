@@ -56,6 +56,8 @@ def perform_localisation_benchmark(model_params: ModelParameters, index_config: 
 
     log.info(f"Fitting model...")
     model.fit(data)
+    del data
+    log.debug(f"Current memory usage: {utils.get_memory_usage():.2f}GB")
     log.info(f"Model is trained.")
 
     log.info(f"Getting query data")

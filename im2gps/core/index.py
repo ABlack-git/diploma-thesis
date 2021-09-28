@@ -117,7 +117,7 @@ class IndexBuilder:
             # two lines below are workaround for a faiss bug, where memmory is used on the gpu0 even when gpu_id!=0
             # for more info see https://github.com/facebookresearch/faiss/issues/1651
             os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-            os.environ["CUDA_VISIBLE_DEVICES"] = self.gpu_id
+            os.environ["CUDA_VISIBLE_DEVICES"] = str(self.gpu_id)
 
             resource = faiss.StandardGpuResources()
             self.__index = faiss.index_cpu_to_gpu(resource, self.gpu_id, self.__index)

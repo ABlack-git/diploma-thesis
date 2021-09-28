@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from omegaconf import MISSING
-from typing import List
+from typing import List, Optional
 
 
 # ----- CREDENTIALS CONFIG ----- #
@@ -88,7 +88,7 @@ class ModelConfig:
 # ----- INDEX CONFIG ----- #
 @dataclass
 class IndexConfig:
-    index_dir: str = MISSING
+    index_dir: Optional[str] = None
     index_type: str = MISSING
     gpu_enabled: bool = MISSING
     gpu_id: int = MISSING
