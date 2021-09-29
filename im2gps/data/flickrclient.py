@@ -7,7 +7,7 @@ import time
 from typing import Generator
 from dataclasses import dataclass, field
 
-from im2gps.conf.configschema import CredsConfig
+from im2gps.conf.im2gps.configschema import CredsConfig
 from im2gps.exceptions import FlickrClientError, DownloadError
 
 log = logging.getLogger(__name__)

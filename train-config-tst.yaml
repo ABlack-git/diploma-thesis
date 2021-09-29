@@ -1,0 +1,24 @@
+net_config_path: "net-path"
+optimizer_config:
+  SGD:
+    lr: 0.1
+    momentum: 0.9
+scheduler_config:
+  ExponentialLR:
+    gamma: 0.1
+data_config:
+  db_config:
+    db: im2gps
+    host: localhost
+    port: 51998
+  train_ds: "some-ds-file-path"
+  val_ds: "some val ds file"
+  batch_size: 32
+  num_workers: 8
+properties:
+  base_dir: /home/andrew/Documents/study/thesis/thesis-src/experiments/training/V1_0__basic_model
+  print_freq: 5
+  sma_window: 10
+  num_epochs: 5
+  gpu_id: 0
+  validate: true

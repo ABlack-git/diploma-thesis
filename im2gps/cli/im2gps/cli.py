@@ -3,7 +3,7 @@ import logging
 
 from mongoengine import connect
 from im2gps.conf import config
-from im2gps.cli import data, localisation, index
+from im2gps.cli.im2gps import data, index, localisation
 from omegaconf import OmegaConf
 
 log = logging.getLogger(__name__)

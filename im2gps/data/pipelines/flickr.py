@@ -9,7 +9,7 @@ from PIL import Image
 
 from im2gps.data.flickrclient import FlickerClient, LoadDto
 from im2gps.conf.config import ConfigRepo
-from im2gps.conf.configschema import Config, CheckpointsConfig
+from im2gps.conf.im2gps.configschema import Config, CheckpointsConfig
 from im2gps.data.flickr_repo import FlickrPhoto, FlickrCheckpoint, ImgUrl
 
 log = logging.getLogger(__name__)
