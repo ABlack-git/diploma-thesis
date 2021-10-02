@@ -25,6 +25,14 @@ class IndexConfig:
     gpu_enabled: bool = False
     gpu_id: int = -1
 
+    @classmethod
+    def from_path(cls, path):
+        with open(os.path.join(path, INDEX_CLASS_FILE), 'rb') as f:
+            index_config = pickle.load(f)
+
+        index_config.index_dir = path
+        return index_config
+
 
 class Index:
     def __init__(self, index, index_type, gpu_enabled, gpu_id):

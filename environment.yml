@@ -1,8 +1,8 @@
 name: im2gps
 channels:
   - defaults
-  - conda-forge
   - pytorch
+  - conda-forge
 dependencies:
   - python=3.7.*
   - pip
@@ -11,6 +11,10 @@ dependencies:
   - pillow=8.0.1
   - pytables=3.6.1
   - pytorch=1.8.0
+  - cudatoolkit=10.2
+  - torchvision
+  - torchaudio
+  - tensorboard
   - click=7.0
   - omegaconf=2.0.*
   - pyyaml
@@ -31,4 +35,4 @@ dependencies:
       - flickrapi == 2.4.0
       - haversine == 2.3.0
       - click-option-group
-      - resources/cirtorch-0.0.1-py3-none-any.whl
+      #- resources/cirtorch-0.0.1-py3-none-any.whl

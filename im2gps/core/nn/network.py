@@ -29,7 +29,7 @@ class Im2GPSNetwork(nn.Module):
             q = self.transformations(query)
             descriptors = self.transformations(neighbours)
             weights = self.d2w(q, descriptors)
-            out = self.kde(weights, descriptors, n_coords)
+            out = self.kde(weights, n_coords)
             return out
 
     def __str__(self):
@@ -122,7 +122,7 @@ class OptimizerBuilder(ModuleBuilder):
         name, kwargs = list(config.items())[0]
         if kwargs is None:
             kwargs = {}
-        return self._get_instance(name, optimizer, kwargs)
+        return self._get_instance(name, optimizer, **kwargs)
 
 
 def save_model(net, path):

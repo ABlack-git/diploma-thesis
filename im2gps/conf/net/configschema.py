@@ -27,6 +27,8 @@ class TrainProperties:
     num_epochs: int = MISSING
     gpu_id: int = MISSING
     validate: bool = MISSING
+    save_checkpoint: bool = MISSING
+    summary_writer: bool = MISSING
 
 
 @dataclass

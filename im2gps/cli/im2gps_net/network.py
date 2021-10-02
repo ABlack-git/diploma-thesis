@@ -1,11 +1,12 @@
 import click
 import os
+import yaml
 from omegaconf import OmegaConf
 from click_option_group import OptionGroup
 
 from im2gps.conf.config import load_config, configure_logging
 from im2gps.conf.net.configschema import TrainConfig
-from im2gps.services.network import NetworkTrainService
+from im2gps.services.network import NetworkTrainService, ParameterSelectionService
 
 train_properties = OptionGroup("Train properties", help="Providing parameters from this group will override default "
                                                         "parameters from config.")
@@ -49,3 +50,23 @@ def train(verbosity, config_path, checkpoint_path, num_epochs, gpu_id, print_fre
         train_service.load_checkpoint(checkpoint_path)
 
     train_service.train()
+
+
+@click.command()
+@click.option("-t", "--train-config", type=str, help="Path to training config")
+@click.option("-p", "--tuning-config", type=str, help="path to tuning config")
+@click.option("-v", "--verbosity",
+              type=click.Choice(['disable', 'debug', 'info', 'warn', 'error', 'critical'], case_sensitive=False),
+              default='info', help="Provide verbosity level")
+def tune(train_config, tuning_config, verbosity):
+    train_cfg: TrainConfig = load_config([train_config], schema=TrainConfig, base_cfg_package="im2gps.conf.net",
+                                         base_cfg="train-config.yaml")
+    with open(tuning_config, "r") as f:
+        tuning_cfg = yaml.load(f, yaml.FullLoader)
+
+    filename = os.path.join(tuning_cfg['base_dir'], "logs", "train.log")
+    configure_logging(verbosity, filename=filename, package="im2gps.conf.net", conf_file="net-logging.yaml")
+
+    tuning_service = ParameterSelectionService(tuning_cfg, train_cfg)
+
+    tuning_service.grid_search()

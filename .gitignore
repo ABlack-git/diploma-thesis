@@ -11,3 +11,6 @@ config-local.yaml
 **/.ipynb_checkpoints/**
 .idea/*
 im2gps.egg-info
+experiments/**/logs/**
+experiments/**/runs/**
+experiments/**/checkpoints/**
