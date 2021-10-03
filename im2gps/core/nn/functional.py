@@ -75,7 +75,7 @@ def dist2weights(x: torch.Tensor, m, dist_type=NNEnum.L2_DIST, eps=1e-8):
         raise ValueError(f'Unknown distance type: {dist_type}')
 
 
-def multivariate_normal_pdf(x: torch.Tensor, mu: torch.Tensor, sigma):
+def multivariate_normal_pdf(x: torch.Tensor, mu: torch.Tensor, cov: torch.Tensor):
     """
 
     :param x: BxQxD
@@ -94,10 +94,12 @@ def multivariate_normal_pdf(x: torch.Tensor, mu: torch.Tensor, sigma):
     assert x.shape[-1] == mu.shape[-1], f"mu {list(mu.shape)} and x {list(x.shape)} must have same last dimension size"
 
     k = x.shape[-1]
-    if isinstance(sigma, float) or isinstance(sigma, int):
-        sigma = torch.eye(x.shape[-1]) * sigma
-    det = sigma.det()
-    inv = torch.inverse(sigma)
+    # if len(sigma.shape) == 0 or len(sigma.shape) == 1:
+    #     cov = torch.eye(k) * sigma
+    # else:
+    #     cov = sigma
+    det = cov.det()
+    inv = torch.inverse(cov)
 
     if len(x.shape) == 2:
         centered = x.unsqueeze(1) - mu
@@ -114,7 +116,7 @@ def multivariate_normal_pdf(x: torch.Tensor, mu: torch.Tensor, sigma):
     return torch.pow(2 * pi, -k / 2) * torch.pow(det, -0.5) * torch.exp(-0.5 * exponent)
 
 
-def kde(weights, coordinates, sigma):
+def kde(weights: torch.Tensor, coordinates, sigma):
     """
     Compute weighted kernel density estimation and find data point with maximal probability
 
@@ -125,17 +127,23 @@ def kde(weights, coordinates, sigma):
     :param sigma: Standard deviation of normal distribution
     :return: coordinates with maximal probability estimated using KDE
     """
-    pdfs = multivariate_normal_pdf(coordinates, coordinates, sigma)  # BxNxN
+    cov = torch.eye(coordinates.shape[-1]).cuda() * sigma
+    pdfs = multivariate_normal_pdf(coordinates, coordinates, cov)  # BxNxN
     if len(pdfs.shape) == 2:
         weighted_pdfs = torch.einsum('n,mn -> mn', weights, pdfs)
         pdf = torch.einsum('mn->m', weighted_pdfs)
-        i = torch.argmax(pdf)
-        return coordinates[i]
+        normalize_by = 1 / (weights.sum() * torch.pow(cov.det(), 0.5))
+        return torch.log(pdf / normalize_by)
+        # i = torch.argmax(pdf)
+        # return coordinates[i]
     elif len(pdfs.shape) == 3:
         weighted_pdfs = torch.einsum('bn,bmn -> bmn', weights, pdfs)
         pdf = torch.einsum('bmn->bm', weighted_pdfs)
-        i = torch.argmax(pdf, dim=1)
-        return coordinates[torch.arange(pdf.shape[0]), i]
+        normalize_by = 1 / (weights.sum(dim=1) * torch.pow(cov.det(), 0.5))
+        normalize_by = normalize_by.unsqueeze(0).t()
+        return torch.log(pdf / normalize_by)
+        # i = torch.argmax(pdf, dim=1)
+        # return coordinates[torch.arange(pdf.shape[0]), i]
     else:
         raise ValueError(f"Wrong dimension of pdfs {list(pdfs.shape)}")
 
@@ -187,3 +195,13 @@ def haversine_distance(x, y, units=NNEnum.HAV_KILOMETERS):
 
 def l2_normalization(x, eps=1e-6):
     return x / (torch.norm(x, p=2, dim=1, keepdim=True) + eps).expand_as(x)
+
+
+def kde_loss(pdf, coordinate_space, true_coords):
+    assert len(coordinate_space.shape) == 3, "For now kde_loss works only with batches"
+    b, n = pdf.shape
+    dists = torch.zeros(b, n).cuda()
+    for i in range(n):
+        dists[:, i] = haversine_distance(coordinate_space[:, i], true_coords)
+    target = torch.argmin(dists, dim=1)
+    return torch.nn.functional.cross_entropy(pdf, target)
