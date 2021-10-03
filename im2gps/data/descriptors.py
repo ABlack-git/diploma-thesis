@@ -102,3 +102,13 @@ class MongoDescriptor(me.Document):
         data['descriptors'] = descriptors
         data['coordinates'] = coordinates
         return data
+
+    @classmethod
+    def get_random_docs(cls, dataset, sample_size):
+        # Sample is quite slow, don't suggest using it
+        pipeline = [{"$sample": {"size": sample_size}}, {"$project": {'_id': 1}}]
+        pipeline_cursor = cls.objects(dataset=dataset).aggregate(pipeline)
+
+        ids = [doc['_id'] for doc in pipeline_cursor]
+
+        return cls.objects(photo_id__in=ids)

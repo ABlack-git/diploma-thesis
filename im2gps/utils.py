@@ -2,6 +2,7 @@ import os
 import typing as t
 import numpy as np
 import psutil
+from collections import deque
 
 
 class Singelton(type):
@@ -46,3 +47,44 @@ def normalise_vector(v, axis=-1, order=2):
 def get_memory_usage():
     process = psutil.Process(os.getpid())
     return process.memory_info().rss * 0.000000001
+
+
+class Stats:
+    def __init__(self, maxlen=10):
+        self._current = 0
+        self._average = 0
+        self._moving_average = 0
+
+        self._total_count = 0
+        self._sum = 0
+        self._queue = deque(maxlen=maxlen)
+
+    @property
+    def current(self):
+        return self._current
+
+    @current.setter
+    def current(self, value):
+        self._current = value
+        self._sum += value
+        self._queue.append(value)
+        self._total_count += 1
+
+        self._average = self._sum / self._total_count
+        self._moving_average = sum(self._queue) / len(self._queue)
+
+    @property
+    def avg(self):
+        return self._average
+
+    @property
+    def sma(self):
+        return self._moving_average
+
+    @property
+    def total_count(self):
+        return self._total_count
+
+    @property
+    def sum(self):
+        return self._sum

@@ -4,7 +4,7 @@ import torch
 import im2gps.core.cirtorchnet as cirtorch
 
 from im2gps.conf.config import ConfigRepo
-from im2gps.conf.configschema import Config
+from im2gps.conf.im2gps.configschema import Config
 from im2gps.data.data import get_img_id_from_path, DirectoryIterator
 from im2gps.data.flickr_repo import FlickrPhoto
 from im2gps.data.descriptors import MongoDescriptor, DatasetEnum

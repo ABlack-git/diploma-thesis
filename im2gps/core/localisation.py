@@ -88,7 +88,7 @@ class LocalisationModel:
                     f"Unexpected type of index {type(self._index)}. Index should be instance of Index or IndexConfig")
             self._trained = True
         else:
-            log.debug("Calling fit() function, but model is trained. Ignoring.")
+            log.warning("Calling fit() function, but model is trained. Ignoring.")
 
     def predict(self, data: np.ndarray) -> np.ndarray:
         log.debug(f"Searching {self.k} nearest neighbours...")

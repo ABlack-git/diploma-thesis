@@ -39,7 +39,7 @@ class Descriptors2Weights(nn.Module):
 class KDE(nn.Module):
     def __init__(self, sigma):
         super().__init__()
-        self.sigma = nn.Parameter(data=torch.tensor(sigma))
+        self.sigma = nn.Parameter(data=torch.eye(2) * sigma)
 
     def forward(self, weights, coordinates):
         """

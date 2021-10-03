@@ -28,8 +28,10 @@ class DescriptorsDataset(Dataset):
             neighbours.append(n_doc.descriptor)
             n_coords.append(n_doc.coordinates)
 
-        neighbours = torch.tensor(neighbours)
-        n_coords = torch.tensor(n_coords)
+        query = torch.tensor(query, dtype=torch.float32)
+        neighbours = torch.tensor(neighbours, dtype=torch.float32)
+        q_coords = torch.tensor(q_coords, dtype=torch.float32)
+        n_coords = torch.tensor(n_coords, dtype=torch.float32)
         query_id = torch.tensor(query_id)
         neighbours_ids = torch.tensor(neighbours_ids)
         return query, neighbours, q_coords, n_coords, query_id, neighbours_ids

@@ -1,0 +1,88 @@
+credentials:
+  flickr:
+    key: ???
+    secret: ???
+db:
+  host: localhost
+  port: 51998
+  database: im2gps
+
+
+cirtorch:
+  model_dir: model_dir
+  img_resolution: 512
+  gpu_id: ???
+
+localisation_model:
+  localisation_type: ???
+  sigma: ???
+  m: ???
+  k: ???
+
+index_config:
+  index_dir: ???
+  index_type: ???
+  gpu_enabled: ???
+  gpu_id: ???
+
+test_config:
+  query_dataset: "test_query"
+  extended_results: false
+  save_results: false
+  save_path: ${properties.output_dir}/localisation-test.json
+
+properties:
+  output_dir: output
+  data_directory: /Users/zakharca/Documents/Study/thesis/data
+  indices_dir: ???
+  split_file: 'resources/datasets.json'
+
+
+checkpoints:
+  meta_checkpoint:
+    page: 1
+    per_page: 250
+    start_date: '2020-11-15'
+    interval_width: 24
+  descriptor_checkpoint:
+    checkpoint_path: ${properties.output_dir}/checkpoint.pickle
+
+filters:
+  flickr:
+    tags:
+      - czechrepublic
+      - -birthday
+      - -party
+      - -portrait
+      - -abstract
+      - -macro
+      - -wedding
+      - -indoors
+      - -fun
+      - -kid
+      - -child
+      - -children
+      - -graffiti
+      - -prom
+      - -concert
+      - -friend
+      - -family
+      - -dog
+      - -cat
+      - -face
+      - -woman
+      - -girl
+      - -lady
+      - -boy
+      - -guy
+      - -nude
+      - -gay
+      - -lesbian
+      - -live
+      - -baby
+      - -stillife
+    place_id: 5iL78XNTUb6Q0TIacg
+    woeid: 23424810
+    media: photos
+    has_geo: 1
+    accuracy: 16

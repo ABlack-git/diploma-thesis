@@ -7,7 +7,7 @@ from dataclasses import fields
 from typing import List
 from omegaconf import OmegaConf
 from im2gps.utils import Singelton
-from im2gps.conf.configschema import Config
+from im2gps.conf.im2gps.configschema import Config
 
 
 class ConfigRepo(metaclass=Singelton):
@@ -28,14 +28,19 @@ def save_configs(cfg: Config):
         conf_repo.save(field.type.__name__, getattr(cfg, field.name))
 
 
-def load_config(additional_configs: List[str] = None) -> Config:
+def load_config(additional_configs: List[str] = None, schema=Config, base_cfg_package="im2gps.conf",
+                base_cfg="config.yaml"):
     """
     In reality this function return omegaconf.DictConfig, but we ducktype it to Config
     :param additional_configs: list of additional configs
+    :param schema
+    :param base_cfg_package
+    :param base_cfg
+
     :return: configuration
     """
-    schema = OmegaConf.structured(Config)
-    base_cfg = OmegaConf.create(res.read_text('im2gps.conf', 'config.yaml'))
+    schema = OmegaConf.structured(schema)
+    base_cfg = OmegaConf.create(res.read_text(base_cfg_package, base_cfg))
     if additional_configs is not None:
         others = []
         for cfg_path in additional_configs:
@@ -53,8 +58,10 @@ def __read_config_file(path) -> dict:
         return cfg
 
 
-def configure_logging(verbosity: str):
-    logging_conf = yaml.safe_load(res.read_text('im2gps.conf', 'logging.yaml'))
+def configure_logging(verbosity: str, filename=None, package="im2gps.conf", conf_file="logging.yaml"):
+    logging_conf = yaml.safe_load(res.read_text(package, conf_file))
+    if filename is not None:
+        logging_conf['handlers']['file']['filename'] = filename
     logging.config.dictConfig(logging_conf)
     if verbosity == 'disable':
         logging.disable(logging.CRITICAL)

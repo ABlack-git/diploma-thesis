@@ -3,7 +3,8 @@ services:
   mongo:
     container_name: im2gps-mongo
     image: mongo
+    command: --wiredTigerCacheSizeGB 1.0
     ports:
       - 51998:27017
     volumes:
-      - "~/.data/im2gps-mongo:/data/db"
+      - "/home/andrew/Documents/study/thesis/db/im2gps-mongo:/data/db"

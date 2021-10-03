@@ -1,0 +1,8 @@
+base_dir: "/home/andrew/Documents/study/thesis/thesis-src/experiments/parameter_tuning/V0_1__Test_parameter_tuning"
+optimizers:
+  - SGD:
+      lr: [ 0.0001, 0.001, 0.01, 0.1 ]
+      momentum: [ 0.5, 0.75,0.9 ]
+  - Adam:
+      lr: [ 0.0001, 0.001, 0.01, 0.1 ]
+batch_size: [ 32, 64 ]

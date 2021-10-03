@@ -1,0 +1,25 @@
+network:
+  restore_from:
+  name: "V1.0 2 layers network"
+  transform_only: false
+  transformation_layers:
+    - Linear:
+        in_features: 2048
+        out_features: 2048
+        bias: true
+    - ReLU:
+        inplace: true
+    - Linear:
+        in_features: 2048
+        out_features: 2048
+    - L2NormalizationLayer:
+
+  custom_layers:
+    - Descriptors2Weights:
+        m: 3
+        dist_type: l2_dist
+    - KDE:
+        sigma: 0.001
+
+
+
