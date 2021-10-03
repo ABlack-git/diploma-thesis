@@ -1,3 +1,4 @@
+import numpy as np
 import shutil
 import torch
 import yaml
@@ -18,7 +19,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from im2gps.core.nn.network import Im2GPSNetworkInitializer, Im2GPSNetwork, OptimizerBuilder
 from im2gps.core.nn.datasets import DescriptorsDataset
-from im2gps.core.nn.layers import HaversineLoss
+from im2gps.core.nn.layers import HaversineLoss, KDELoss
 from im2gps.utils import Stats
 from im2gps.conf.net.configschema import TrainConfig, TrainProperties
 
@@ -60,7 +61,7 @@ class NetworkTrainService:
         net.cuda()
 
         log.info("Adding loss function")
-        criterion = HaversineLoss().cuda()
+        criterion = KDELoss().cuda()
 
         log.info(f"Building optimizer: {train_cfg.optimizer_config}")
         opt_builder = OptimizerBuilder()
@@ -172,10 +173,9 @@ class NetworkTrainService:
             q_coords = q_coords.cuda()
             n_coords = n_coords.cuda()
             out = self.net(query=q, neighbours=neighbours, n_coords=n_coords)
-            loss = self.criterion(out, q_coords)
+            loss = self.criterion(out, n_coords, q_coords)
             loss_stat.current = loss.item()
 
-            loss.requires_grad = True
             loss.backward()
             self.optimizer.step()
 
@@ -209,7 +209,7 @@ class NetworkTrainService:
             n_coords = n_coords.cuda()
             with torch.no_grad():
                 out = self.net(query=q, neighbours=neighbours, n_coords=n_coords)
-                loss = self.criterion(out, q_coords)
+                loss = self.criterion(out, n_coords, q_coords)
 
             loss_stat.current = loss.item()
             batch_stat.current = time.time() - start_time
@@ -325,7 +325,8 @@ class ParameterSelectionService:
 
                 sw.add_hparams(hparam_dict=run_config.get_params_as_dict(),
                                metric_dict={"Hparam/train_loss": loss_stat['loss'],
-                                            "Hparam/validation_loss": loss_stat['validation_loss']})
+                                            "Hparam/validation_loss": loss_stat['validation_loss']},
+                               run_name=str(run_config))
 
             sw.close()
 

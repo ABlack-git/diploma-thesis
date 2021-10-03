@@ -1,0 +1,26 @@
+net_config_path: "/home/andrew/Documents/study/thesis/thesis-src/experiments/networks/V1_1__2layers_network_after_kde_rework.yaml"
+optimizer_config:
+  SGD:
+    lr: 0.1
+    momentum: 0.9
+scheduler_config:
+  ExponentialLR:
+    gamma: 0.95
+data_config:
+  db_config:
+    db: im2gps
+    host: localhost
+    port: 51998
+  train_ds: "/home/andrew/Documents/study/thesis/thesis-src/experiments/datasets/V1_0__Simple_dataset/train_ds.json"
+  val_ds: "/home/andrew/Documents/study/thesis/thesis-src/experiments/datasets/V1_0__Simple_dataset/val_ds.json"
+  batch_size: 32
+  num_workers: 0
+properties:
+  base_dir: "/home/andrew/Documents/study/thesis/thesis-src/experiments/training/V0_2__model_test_after_kde_rework"
+  print_freq: 1
+  sma_window: 10
+  num_epochs: 5
+  gpu_id: 0
+  validate: true
+  save_checkpoint: true
+  summary_writer: true

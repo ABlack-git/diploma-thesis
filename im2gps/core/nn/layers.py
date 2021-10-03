@@ -18,9 +18,9 @@ class L2NormalizationLayer(nn.Module):
 
 
 class Descriptors2Weights(nn.Module):
-    def __init__(self, m: float, dist_type=NNEnum.L2_DIST):
+    def __init__(self, m: float, trainable=True, dist_type=NNEnum.L2_DIST):
         super().__init__()
-        self.m = nn.Parameter(data=torch.tensor(m, dtype=torch.float))
+        self.m = nn.Parameter(data=torch.tensor(m, dtype=torch.float), requires_grad=trainable)
         if isinstance(dist_type, NNEnum):
             self.dist_type: NNEnum = dist_type
         elif isinstance(dist_type, str):
@@ -37,9 +37,9 @@ class Descriptors2Weights(nn.Module):
 
 
 class KDE(nn.Module):
-    def __init__(self, sigma):
+    def __init__(self, sigma, trainable=True):
         super().__init__()
-        self.sigma = nn.Parameter(data=torch.eye(2) * sigma)
+        self.sigma = nn.Parameter(data=torch.tensor(sigma), requires_grad=trainable)
 
     def forward(self, weights, coordinates):
         """
@@ -47,7 +47,12 @@ class KDE(nn.Module):
         :param coordinates: BxNx2
         :return:
         """
-        return f.kde(weights, coordinates, self.sigma)
+        pdf = f.kde(weights, coordinates, self.sigma)
+        if self.training:
+            return pdf
+        else:
+            # get points with max prob in coordinates
+            pass
 
     def __repr__(self):
         return self.__class__.__name__ + f'(sigma={self.sigma})'
@@ -59,3 +64,11 @@ class HaversineLoss(nn.Module):
 
     def forward(self, predicted, ground_true):
         return f.haversine_loss(predicted, ground_true)
+
+
+class KDELoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, pdf, coord_space, true_coords):
+        return f.kde_loss(pdf, coord_space, true_coords)
