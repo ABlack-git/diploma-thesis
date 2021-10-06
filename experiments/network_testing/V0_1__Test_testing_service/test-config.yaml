@@ -1,0 +1,14 @@
+db_config:
+  db: im2gps
+  host: localhost
+  port: 51998
+dataset_file: "/home/andrew/Documents/study/thesis/thesis-src/resources/descriptor_ids.json"
+test_dataset: "test_query"
+properties:
+  results_dir: "/home/andrew/Documents/study/thesis/thesis-src/experiments/network_testing/V0_1__Test_testing_service"
+  k: 30
+  print_freq: 10
+batch_size: 512
+num_workers: 0
+net_cfg_path: "/home/andrew/Documents/study/thesis/thesis-src/experiments/networks/V1_1__2layers_network_after_kde_rework.yaml"
+gpu_id: 0

@@ -5,8 +5,8 @@ from omegaconf import OmegaConf
 from click_option_group import OptionGroup
 
 from im2gps.conf.config import load_config, configure_logging
-from im2gps.conf.net.configschema import TrainConfig
-from im2gps.services.network import NetworkTrainService, ParameterSelectionService
+from im2gps.conf.net.configschema import TrainConfig, ExtendedTestConfig
+from im2gps.services.network import TrainServiceBuilder, ParameterSelectionService, NetworkTestService
 
 train_properties = OptionGroup("Train properties", help="Providing parameters from this group will override default "
                                                         "parameters from config.")
@@ -41,10 +41,9 @@ def train(verbosity, config_path, checkpoint_path, num_epochs, gpu_id, print_fre
 
     print(OmegaConf.to_yaml(cfg))
 
-    filename = os.path.join(cfg.properties.base_dir, "logs", "train.log")
-    configure_logging(verbosity, filename=filename, package="im2gps.conf.net", conf_file="net-logging.yaml")
+    __configure_logging(cfg.properties.base_dir, verbosity, "train.log")
 
-    train_service = NetworkTrainService.init(cfg)
+    train_service = TrainServiceBuilder(cfg).init()
 
     if checkpoint_path is not None:
         train_service.load_checkpoint(checkpoint_path)
@@ -64,9 +63,31 @@ def tune(train_config, tuning_config, verbosity):
     with open(tuning_config, "r") as f:
         tuning_cfg = yaml.load(f, yaml.FullLoader)
 
-    filename = os.path.join(tuning_cfg['base_dir'], "logs", "train.log")
-    configure_logging(verbosity, filename=filename, package="im2gps.conf.net", conf_file="net-logging.yaml")
+    __configure_logging(tuning_cfg['base_dir'], verbosity, "tuning.log")
 
     tuning_service = ParameterSelectionService(tuning_cfg, train_cfg)
 
     tuning_service.grid_search()
+
+
+@click.command()
+@click.option("-c", "--config", type=str, help="Path to test config")
+@click.option("-v", "--verbosity",
+              type=click.Choice(['disable', 'debug', 'info', 'warn', 'error', 'critical'], case_sensitive=False),
+              default='info', help="Provide verbosity level")
+def test(config, verbosity):
+    test_cfg: ExtendedTestConfig = load_config([config], schema=ExtendedTestConfig, base_cfg_package="im2gps.conf.net",
+                                               base_cfg="test-config.yaml")
+    __configure_logging(test_cfg.properties.results_dir, verbosity, "testing.log")
+
+    testing_service = NetworkTestService.init(test_cfg)
+
+    testing_service.test()
+
+
+def __configure_logging(base_dir, verbosity, filename):
+    log_dir = os.path.join(base_dir, "logs")
+    if not os.path.isdir(log_dir):
+        os.makedirs(log_dir)
+    file_path = os.path.join(log_dir, filename)
+    configure_logging(verbosity, filename=file_path, package="im2gps.conf.net", conf_file="net-logging.yaml")

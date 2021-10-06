@@ -1,3 +1,4 @@
+import json
 import numpy as np
 import shutil
 import torch
@@ -18,10 +19,16 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from im2gps.core.nn.network import Im2GPSNetworkInitializer, Im2GPSNetwork, OptimizerBuilder
-from im2gps.core.nn.datasets import DescriptorsDataset
+from im2gps.core.nn.enum import NNEnum
+from im2gps.core.nn.datasets import TrainDataset, TestDataset
 from im2gps.core.nn.layers import HaversineLoss, KDELoss
+from im2gps.core.index import IndexBuilder, Index, IndexConfig, IndexType
 from im2gps.utils import Stats
-from im2gps.conf.net.configschema import TrainConfig, TrainProperties
+from im2gps.conf.net.configschema import TrainConfig, TrainProperties, TestProperties, ExtendedTestConfig
+from im2gps.core.localisation import LocalisationModel, LocalisationType
+from im2gps.services.localisation import _get_benchmark_results
+from im2gps.data.descriptors import DatasetEnum
+from im2gps.core.metric import dist_thresholds
 
 log = logging.getLogger(__name__)
 
@@ -29,14 +36,15 @@ log = logging.getLogger(__name__)
 @dataclass
 class Checkpoint:
     epoch: int
-    scheduler_state_dict: dict
+    scheduler_state_dict: t.Optional[dict]
     optimizer_state_dict: dict
     min_loss: float
 
 
 class NetworkTrainService:
-    def __init__(self, net, optimizer, criterion, train_loader, val_loader, train_properties: TrainProperties,
-                 summary_writer: SummaryWriter, scheduler=None, min_loss=float('inf')):
+    def __init__(self, net, optimizer, criterion, train_loader, train_properties: TrainProperties,
+                 summary_writer: SummaryWriter = None, val_loader=None, scheduler=None,
+                 test_service: 'NetworkTestService' = None):
         self.net: Im2GPSNetwork = net
         self.optimizer: Optimizer = optimizer
         self.criterion: HaversineLoss = criterion
@@ -46,75 +54,8 @@ class NetworkTrainService:
         self.start_epoch = 0
         self.summary_writer = summary_writer
         self.properties = train_properties
-
-        self.min_loss = min_loss
-
-    @classmethod
-    def init(cls, train_cfg: TrainConfig):
-        log.info("Initializing network training")
-        log.info("Reading network config")
-        net_config = _read_network_config(train_cfg.net_config_path)
-        os.environ['CUDA_VISIBLE_DEVICES'] = str(train_cfg.properties.gpu_id)
-
-        log.info("Building network")
-        net = Im2GPSNetworkInitializer(net_config).init_network()
-        net.cuda()
-
-        log.info("Adding loss function")
-        criterion = KDELoss().cuda()
-
-        log.info(f"Building optimizer: {train_cfg.optimizer_config}")
-        opt_builder = OptimizerBuilder()
-        optimizer: Optimizer = opt_builder.build_optimizer(train_cfg.optimizer_config, net.parameters())
-
-        scheduler = None
-        if train_cfg.scheduler_config is not None:
-            log.info(f"Building scheduler: {train_cfg.scheduler_config}")
-            scheduler = opt_builder.build_scheduler(train_cfg.scheduler_config, optimizer)
-
-        log.info("Building data loader")
-        train_dataset = DescriptorsDataset(train_cfg.data_config.train_ds)
-
-        def connect_to_db(worker):
-            connect(db=train_cfg.data_config.db_config.db,
-                    host=train_cfg.data_config.db_config.host,
-                    port=train_cfg.data_config.db_config.port)
-
-        if train_cfg.data_config.num_workers == 0:
-            connect_to_db(0)
-
-        train_loader = DataLoader(
-            train_dataset,
-            shuffle=True,
-            batch_size=train_cfg.data_config.batch_size,
-            num_workers=train_cfg.data_config.num_workers,
-            pin_memory=True,
-            drop_last=True,
-            worker_init_fn=connect_to_db
-        )
-
-        val_dataset = DescriptorsDataset(train_cfg.data_config.val_ds)
-
-        val_loader = DataLoader(
-            val_dataset,
-            shuffle=True,
-            batch_size=train_cfg.data_config.batch_size,
-            num_workers=train_cfg.data_config.num_workers,
-            pin_memory=True,
-            drop_last=True,
-            worker_init_fn=connect_to_db
-        )
-
-        summary_writer = None
-        if train_cfg.properties.summary_writer:
-            summary_log_dir = os.path.join(train_cfg.properties.base_dir, "runs")
-            if not os.path.isdir(summary_log_dir):
-                os.makedirs(summary_log_dir)
-            summary_writer = SummaryWriter(log_dir=summary_log_dir)
-
-        log.info("Finishing initialization")
-        return cls(net, optimizer, criterion, train_loader, val_loader, train_cfg.properties,
-                   summary_writer, scheduler=scheduler)
+        self.test_service = test_service
+        self.min_loss = float('inf')
 
     def train(self):
         losses = []
@@ -123,17 +64,23 @@ class NetworkTrainService:
             loss = self._train_for_one_epoch(epoch)
             log.info(f"Average training loss: {loss:.3f}")
 
-            # validate
-            validation_loss = None
+            validation_loss = float("inf")
             if self.properties.validate:
                 log.info("Running validation...")
                 validation_loss = self.validate(epoch)
                 log.info(f"Average validation loss: {validation_loss:.3f}")
 
             losses.append({"loss": loss, "validation_loss": validation_loss, "epoch": epoch})
-            # test
 
-            # add stats
+            if self.test_service is not None and (epoch + 1) % self.properties.test_freq == 0:
+                log.info("Running test...")
+                results = self.test_service.test(test_run=epoch)
+                log.info(f"Test accuracy: {results.accuracy}")
+                if self.properties.summary_writer:
+                    for threshold in dist_thresholds.keys():
+                        self.summary_writer.add_scalar(f"Accuracy/test_{threshold}",
+                                                       results.accuracy[threshold], epoch)
+
             if self.properties.summary_writer:
                 self.summary_writer.add_scalar("Loss/train", loss, epoch)
                 if self.scheduler is not None:
@@ -145,12 +92,14 @@ class NetworkTrainService:
                 self.scheduler.step()
                 log.debug(f"Current learning rate: {self.scheduler.get_last_lr()}")
 
-            # save checkpoint
             if self.properties.save_checkpoint:
-                is_best = loss < self.min_loss
+                is_best = validation_loss < self.min_loss
                 self.min_loss = min(loss, self.min_loss)
                 log.info("Saving checkpoint")
-                checkpoint = Checkpoint(epoch, self.scheduler.state_dict(), self.optimizer.state_dict(),
+                scheduler_state_dict = None
+                if self.scheduler is not None:
+                    scheduler_state_dict = self.scheduler.state_dict()
+                checkpoint = Checkpoint(epoch, scheduler_state_dict, self.optimizer.state_dict(),
                                         self.min_loss)
                 self._save_train_checkpoint(checkpoint, is_best)
 
@@ -260,7 +209,8 @@ class NetworkTrainService:
         checkpoint_dict = torch.load(os.path.join(checkpoint_dir, "checkpoint.pth"))
         checkpoint = Checkpoint(**checkpoint_dict)
         self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
-        self.scheduler.load_state_dict(checkpoint.scheduler_state_dict)
+        if self.scheduler is not None:
+            self.scheduler.load_state_dict(checkpoint.scheduler_state_dict)
         self.start_epoch = checkpoint.epoch + 1
         self.min_loss = checkpoint.min_loss
 
@@ -268,10 +218,148 @@ class NetworkTrainService:
         self.net.load_state_dict(net_state_dict)
 
 
-def _read_network_config(config_path):
-    with open(config_path, 'r') as f:
-        net_conf = yaml.load(f, yaml.FullLoader)
-    return net_conf
+class TrainServiceBuilder:
+    def __init__(self, train_config: TrainConfig):
+        self.train_cfg = train_config
+
+        self.__opt_builder = OptimizerBuilder()
+
+    def __init_network(self):
+        net_config = _read_network_config(self.train_cfg.net_config_path)
+        os.environ['CUDA_VISIBLE_DEVICES'] = str(self.train_cfg.properties.gpu_id)
+        net = Im2GPSNetworkInitializer(net_config).init_network()
+        net.cuda()
+        return net
+
+    def __init_loss(self):
+        return KDELoss().cuda()
+
+    def __init_optimizer(self, net):
+        log.debug(f"Optimizer config: {self.train_cfg.optimizer_config}")
+        return self.__opt_builder.build_optimizer(self.train_cfg.optimizer_config, net.parameters())
+
+    def __init_scheduler(self, optimizer):
+        log.debug(f"Scheduler config: {self.train_cfg.scheduler_config}")
+        return self.__opt_builder.build_scheduler(self.train_cfg.scheduler_config, optimizer)
+
+    def __init_train_loader(self, worker_init_fn):
+        log.debug(f"Train dataset: {self.train_cfg.data_config.train_ds}")
+        train_dataset = TrainDataset(self.train_cfg.data_config.train_ds)
+
+        train_loader = DataLoader(
+            train_dataset,
+            shuffle=True,
+            batch_size=self.train_cfg.data_config.batch_size,
+            num_workers=self.train_cfg.data_config.num_workers,
+            pin_memory=True,
+            drop_last=True,
+            worker_init_fn=worker_init_fn
+        )
+
+        return train_loader
+
+    def __init_val_loader(self, worker_init_fn):
+        log.debug(f"Validation dataset: {self.train_cfg.data_config.val_ds}")
+        val_dataset = TrainDataset(self.train_cfg.data_config.val_ds)
+
+        val_loader = DataLoader(
+            val_dataset,
+            shuffle=True,
+            batch_size=self.train_cfg.data_config.batch_size,
+            num_workers=self.train_cfg.data_config.num_workers,
+            pin_memory=True,
+            drop_last=True,
+            worker_init_fn=worker_init_fn
+        )
+
+        return val_loader
+
+    def __init_summary_writer(self):
+        summary_log_dir = os.path.join(self.train_cfg.properties.base_dir, "runs")
+        log.debug(f"Summary log dir: {summary_log_dir}")
+        if not os.path.isdir(summary_log_dir):
+            os.makedirs(summary_log_dir)
+        return SummaryWriter(log_dir=summary_log_dir)
+
+    def __init_test_loaders(self, worker_init_fn):
+        database_ds = TestDataset(DatasetEnum.DATABASE, self.train_cfg.test_config.dataset_file)
+
+        db_loader = DataLoader(
+            database_ds,
+            batch_size=self.train_cfg.test_config.batch_size,
+            num_workers=self.train_cfg.data_config.num_workers,
+            pin_memory=True,
+            drop_last=False,
+            worker_init_fn=worker_init_fn
+        )
+
+        assert self.train_cfg.test_config.test_dataset in set(item.value for item in DatasetEnum), \
+            f"Unknown dataset type {self.train_cfg.test_config.test_dataset}"
+        test_ds_type = DatasetEnum(self.train_cfg.test_config.test_dataset)
+        test_ds = TestDataset(test_ds_type, self.train_cfg.test_config.dataset_file)
+
+        test_loader = DataLoader(
+            test_ds,
+            batch_size=self.train_cfg.test_config.batch_size,
+            num_workers=self.train_cfg.data_config.num_workers,
+            pin_memory=True,
+            drop_last=False,
+            worker_init_fn=worker_init_fn
+        )
+
+        return db_loader, test_loader
+
+    def __init_test_service(self, net, ds_loader, test_loader):
+        return NetworkTestService(net, ds_loader, test_loader, self.train_cfg.test_config.properties)
+
+    def init(self):
+        log.info("Initializing train service...")
+        log.debug("Building network")
+        net = self.__init_network()
+        log.debug("Building criterion")
+        criterion = self.__init_loss()
+        log.debug("Building optimizer")
+        optimizer = self.__init_optimizer(net)
+
+        scheduler = None
+        if self.train_cfg.scheduler_config is not None:
+            log.debug(f"Building scheduler")
+            scheduler = self.__init_scheduler(optimizer)
+
+        db = self.train_cfg.data_config.db_config.db
+        host = self.train_cfg.data_config.db_config.host
+        port = self.train_cfg.data_config.db_config.port
+
+        def connect_to_db(worker):
+            connect(db=db, host=host, port=port)
+
+        if self.train_cfg.data_config.num_workers == 0:
+            log.debug("Num workers is 0, connecting to db")
+            connect_to_db(0)
+        log.debug("Building train loaders")
+        train_loader = self.__init_train_loader(worker_init_fn=connect_to_db)
+
+        val_loader = None
+        if self.train_cfg.properties.validate:
+            log.debug("Building val loader")
+            val_loader = self.__init_val_loader(worker_init_fn=connect_to_db)
+
+        summary_writer = None
+        if self.train_cfg.properties.summary_writer:
+            log.debug("Building summary writer")
+            summary_writer = self.__init_summary_writer()
+
+        test_service = None
+        if self.train_cfg.test_config is not None:
+            log.debug("Building test loaders")
+            ds_loader, test_loader = self.__init_test_loaders(connect_to_db)
+            log.debug("Building test service")
+            test_service = self.__init_test_service(net, ds_loader, test_loader)
+
+        train_service = NetworkTrainService(net, optimizer, criterion, train_loader, self.train_cfg.properties,
+                                            summary_writer, val_loader, scheduler, test_service)
+        log.info("Finished building train service")
+        return train_service
 
 
 class ParameterSelectionService:
@@ -299,7 +387,7 @@ class ParameterSelectionService:
     def _init_train_service(self, train_config):
         if self.__train_service is not None:
             del self.__train_service
-        self.__train_service = NetworkTrainService.init(train_config)
+        self.__train_service = TrainServiceBuilder(train_config).init()
 
     def grid_search(self):
         run_configs = self._get_run_configs()
@@ -350,11 +438,141 @@ class ParametersRunConfig:
         }
 
 
-#
-# def test():
-#     pass
+class NetworkTestService:
+    def __init__(self, net: Im2GPSNetwork, database_set_loader: DataLoader, test_set_loader: DataLoader,
+                 properties: TestProperties):
+        self.net = net
+        self.database_set_loader = database_set_loader
+        self.test_set_loader = test_set_loader
+        self.properties = properties
+
+    def test(self, test_run=0):
+        assert isinstance(test_run, int), "test_run parameter should be int"
+
+        if self.net.training:
+            training = True
+        else:
+            training = False
+        self.net.eval()
+
+        if self.net.d2w.dist_type is NNEnum.L2_DIST:
+            index_type = IndexType.L2_INDEX
+        elif self.net.d2w.dist_type is NNEnum.COS_DIST:
+            index_type = IndexType.COSINE_INDEX
+        else:
+            raise ValueError(f"Unknown d2w distance type: {self.net.d2w.dist_type}")
+        index_config = IndexConfig(index_type=index_type)
+        index: Index = IndexBuilder(index_config, index_dimension=2048).build()
+
+        ids_list = []
+        coords_list = []
+        log.info("Starting to load db descriptors")
+        for i, ds_tuple in enumerate(self.database_set_loader):
+            if (i + 1) % self.properties.print_freq == 0 or i == 0 or (i + 1) == len(self.database_set_loader):
+                log.info(f"Loading db descriptors: {i}/{len(self.database_set_loader)}")
+            desc, ids, coordinates = ds_tuple
+            desc = desc.cuda()
+            with torch.no_grad():
+                out = self.net(in_descriptors=desc)
+
+            index.add_with_ids(out.cpu().numpy(), ids.numpy())
+
+            ids_list.extend(ids.tolist())
+            coords_list.extend(coordinates.tolist())
+
+        log.info("Building and fitting localisation model")
+        sigma = self.net.kde.sigma.item()
+        m = self.net.d2w.m.item()
+        model = LocalisationModel(LocalisationType.KDE, index, sigma=sigma, m=m, k=self.properties.k)
+        model.fit(ids_list, coords_list)
+
+        log.info("Starting to load test descriptors")
+        queries = []
+        q_ids = []
+        q_coords = []
+        for i, test_tuple in enumerate(self.test_set_loader):
+            if (i + 1) % self.properties.print_freq == 0 or i == 0 or (i + 1) == len(self.database_set_loader):
+                log.info(f"Loading test descriptors: {i + 1}/{len(self.test_set_loader)}")
+            desc, ids, coordinates = test_tuple
+            desc = desc.cuda()
+            with torch.no_grad():
+                out = self.net(in_descriptors=desc)
+            queries.extend(out.cpu().tolist())
+            q_ids.extend(ids.tolist())
+            q_coords.extend(coordinates.tolist())
+
+        log.info("Running localisation prediction")
+        predicted_locations = model.predict(np.array(queries))
+        results = _get_benchmark_results(predicted_locations, np.array(q_coords), np.array(q_ids))
+        log.info(f"Prediction accuracy: {results.accuracy}")
+
+        if self.properties.results_dir is not None:
+            self._save_results(results, test_run)
+        if training:
+            # if network was training return to training mode
+            self.net.train()
+        return results
+
+    def _save_results(self, results, test_run: int):
+        if test_run <= 0:
+            file_name = "results.json"
+        else:
+            file_name = f"results_{test_run}.json"
+        if not os.path.isdir(self.properties.results_dir):
+            os.makedirs(self.properties.results_dir)
+        path = os.path.join(self.properties.results_dir, file_name)
+        with open(path, "w") as f:
+            json.dump(asdict(results), f)
+
+    @classmethod
+    def init(cls, config: ExtendedTestConfig):
+        log.info("Initializing test service")
+        net_config = _read_network_config(config.net_cfg_path)
+        os.environ['CUDA_VISIBLE_DEVICES'] = str(config.gpu_id)
+        net = Im2GPSNetworkInitializer(net_config).init_network()
+        net.cuda()
+
+        def worker_init_fn(worker):
+            connect(db=config.db_config.db, host=config.db_config.host, port=config.db_config.port)
+
+        if config.num_workers == 0:
+            log.info("Connecting to database")
+            worker_init_fn(0)
+
+        database_ds = TestDataset(DatasetEnum.DATABASE, config.dataset_file)
+
+        db_loader = DataLoader(
+            database_ds,
+            batch_size=config.batch_size,
+            num_workers=config.num_workers,
+            pin_memory=True,
+            drop_last=False,
+            worker_init_fn=worker_init_fn
+        )
+
+        assert config.test_dataset in set(item.value for item in DatasetEnum), \
+            f"Unknown dataset type {config.test_dataset}"
+        test_ds_type = DatasetEnum(config.test_dataset)
+        test_ds = TestDataset(test_ds_type, config.dataset_file)
+
+        test_loader = DataLoader(
+            test_ds,
+            batch_size=config.batch_size,
+            num_workers=config.num_workers,
+            pin_memory=True,
+            drop_last=False,
+            worker_init_fn=worker_init_fn
+        )
+        if config.load_path is not None:
+            log.info(f"Loading network from {config.load_path}")
+            net_state_dict = torch.load(config.load_path)
+            net.laod_state_dict(net_state_dict)
+        test_service = cls(net, db_loader, test_loader, config.properties)
+        log.info("test service initialization complete")
+        return test_service
 
 
-rc = ParametersRunConfig({}, 'SGD', {"lr": 0.001, "momentum": 0.9}, 64)
-print(str(rc))
-print(rc.get_params_as_dict())
+def _read_network_config(config_path):
+    with open(config_path, 'r') as f:
+        net_conf = yaml.load(f, yaml.FullLoader)
+    return net_conf

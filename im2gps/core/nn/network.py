@@ -18,7 +18,7 @@ class Im2GPSNetwork(nn.Module):
         self.kde: im2gps_layers.KDE = kde
 
     def forward(self, query=None, neighbours=None, n_coords=None, in_descriptors=None):
-        if self.transform_only:
+        if not self.training:
             assert in_descriptors is not None, "Descriptors should be provided"
             return self.transformations(in_descriptors)
         else:

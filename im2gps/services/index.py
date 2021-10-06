@@ -10,11 +10,11 @@ log = logging.getLogger(__name__)
 
 def create_and_save_index(index_config: IndexConfig):
     log.info("Reading data from db...")
-    data = MongoDescriptor.get_as_data_dict(DatasetEnum.DATABASE)
+    ids, coordinates, descriptors = MongoDescriptor.get_data_as_arrays(DatasetEnum.DATABASE)
     log.info("Finished reading data from db")
 
     log.info("Building index...")
-    index = IndexBuilder(data['descriptors'], data['ids'], index_config).build()
+    index = IndexBuilder(index_config, descriptors, ids).build()
     log.info(f"Index built: {repr(index)}")
 
     class_path = os.path.join(index_config.index_dir, INDEX_CLASS_FILE)
@@ -30,10 +30,10 @@ def create_and_save_index(index_config: IndexConfig):
 def get_index(index_config: IndexConfig) -> Index:
     if index_config.index_dir is None:
         log.info("Getting training data")
-        data = MongoDescriptor.get_as_data_dict(DatasetEnum.DATABASE)
+        ids, coordinates, descriptors = MongoDescriptor.get_data_as_arrays(DatasetEnum.DATABASE)
         log.info("Finished getting training data")
-        index = IndexBuilder(data['descriptors'], data['ids'], index_config).build()
+        index = IndexBuilder(index_config, descriptors, ids).build()
     else:
-        index = IndexBuilder(None, None, index_config).build()
+        index = IndexBuilder(index_config).build()
 
     return index
