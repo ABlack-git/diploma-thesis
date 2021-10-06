@@ -54,7 +54,6 @@ class MongoDescriptor(me.Document):
             objects = cls.objects(dataset=dataset)
         else:
             raise ValueError(f"dataset should be one of DatasetEnum, was {dataset}")
-        data = dict()
         total = objects.count()
 
         log.debug(f"Getting {dataset.value} dataset from db. Total number of documents in db {total}")
@@ -70,17 +69,15 @@ class MongoDescriptor(me.Document):
             if (i + 1) % batch_size == 0:
                 log.debug(f"Processed {i + 1} documents")
 
-        data['ids'] = ids
-        data['coordinates'] = coordinates
-        return data
+        return ids, coordinates
 
     @classmethod
-    def get_as_data_dict(cls, dataset: DatasetEnum = None) -> dict:
+    def get_data_as_arrays(cls, dataset: DatasetEnum = None) -> dict:
         if isinstance(dataset, DatasetEnum):
             objects = cls.objects(dataset=dataset)
         else:
             raise ValueError(f"dataset should be one of DatasetEnum, was {dataset}")
-        data = dict()
+
         total = objects.count()
         dim = cls.objects.first().descriptor.shape[0]
 
@@ -98,10 +95,7 @@ class MongoDescriptor(me.Document):
             if (i + 1) % batch_size == 0:
                 log.debug(f"Processed {i + 1} documents")
 
-        data['ids'] = ids
-        data['descriptors'] = descriptors
-        data['coordinates'] = coordinates
-        return data
+        return ids, coordinates, descriptors
 
     @classmethod
     def get_random_docs(cls, dataset, sample_size):

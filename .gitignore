@@ -14,3 +14,4 @@ im2gps.egg-info
 experiments/**/logs/**
 experiments/**/runs/**
 experiments/**/checkpoints/**
+experiments/**/test_results/**

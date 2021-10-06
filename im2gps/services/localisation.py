@@ -45,36 +45,37 @@ def perform_localisation_benchmark(model_params: ModelParameters, index_config: 
 
     if index_config.index_dir is None:
         log.info("Getting training data")
-        data = MongoDescriptor.get_as_data_dict(DatasetEnum.DATABASE)
+        ids, coordinates, descriptors = MongoDescriptor.get_data_as_arrays(DatasetEnum.DATABASE)
         log.info("Finished getting training data")
     else:
         log.info("Getting ids and coords for training data")
-        data = MongoDescriptor.get_ids_and_coords(DatasetEnum.DATABASE)
+        ids, coordinates = MongoDescriptor.get_ids_and_coords(DatasetEnum.DATABASE)
+        descriptors = None
         log.info("Finished getting training data")
 
     log.debug(f"Current memory usage: {utils.get_memory_usage():.2f}GB")
 
     log.info(f"Fitting model...")
-    model.fit(data)
-    del data
+    model.fit(ids, coordinates, descriptors)
+    del ids, coordinates, descriptors
     log.debug(f"Current memory usage: {utils.get_memory_usage():.2f}GB")
     log.info(f"Model is trained.")
 
     log.info(f"Getting query data")
-    query_data = MongoDescriptor.get_as_data_dict(dataset=benchmark_params.query_dataset)
+    q_ids, q_coordinates, q_descriptors = MongoDescriptor.get_data_as_arrays(dataset=benchmark_params.query_dataset)
     log.info("Finished getting query data")
     log.debug(f"Current memory usage: {utils.get_memory_usage():.2f}GB")
 
     log.info("Getting predictions...")
-    predicted_locations = model.predict(query_data['descriptors'])
+    predicted_locations = model.predict(q_descriptors)
     log.info("Finished getting predictions")
 
     if benchmark_params.extended_results:
-        img_ids = query_data['ids']
+        img_ids = q_ids
     else:
         img_ids = None
 
-    result = _get_benchmark_results(predicted_locations, query_data['coordinates'], img_ids)
+    result = _get_benchmark_results(predicted_locations, q_coordinates, img_ids)
 
     if benchmark_params.save_result:
         log.info("Saving test results")

@@ -65,7 +65,7 @@ class LocalisationModel:
         self._trained: bool = False
         self._coordinate_map = None
 
-    def fit(self, data: dict):
+    def fit(self, ids, coordinates, descriptors=None):
         """
         :param data: dict with coordinates, ids and descriptors
         :return:
@@ -73,14 +73,14 @@ class LocalisationModel:
         if not self._trained:
             log.debug("Fitting localisation model...")
             self._coordinate_map = {photo_id: coordinate for photo_id, coordinate in
-                                    zip(data['ids'], data['coordinates'])}
+                                    zip(ids, coordinates)}
             if isinstance(self._index, IndexConfig):
                 if self._index.index_dir is not None:
                     log.debug("Index directory was provided, will load index from disk")
-                    self._index = IndexBuilder(None, None, self._index).build()
+                    self._index = IndexBuilder(self._index).build()
                 else:
                     log.debug("Building index...")
-                    self._index = IndexBuilder(data['descriptors'], data['ids'], self._index).build()
+                    self._index = IndexBuilder(self._index, descriptors, ids).build()
             elif isinstance(self._index, Index):
                 log.debug(f"Using provided index {repr(self._index)}")
             else:
