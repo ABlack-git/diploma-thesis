@@ -28,7 +28,7 @@ def save_configs(cfg: Config):
         conf_repo.save(field.type.__name__, getattr(cfg, field.name))
 
 
-def load_config(additional_configs: List[str] = None, schema=Config, base_cfg_package="im2gps.conf",
+def load_config(additional_configs: List[str] = None, schema=Config, base_cfg_package="im2gps.conf.im2gps",
                 base_cfg="config.yaml"):
     """
     In reality this function return omegaconf.DictConfig, but we ducktype it to Config
@@ -58,7 +58,7 @@ def __read_config_file(path) -> dict:
         return cfg
 
 
-def configure_logging(verbosity: str, filename=None, package="im2gps.conf", conf_file="logging.yaml"):
+def configure_logging(verbosity: str, filename=None, package="im2gps.conf.im2gps", conf_file="logging.yaml"):
     logging_conf = yaml.safe_load(res.read_text(package, conf_file))
     if filename is not None:
         logging_conf['handlers']['file']['filename'] = filename

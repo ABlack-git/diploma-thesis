@@ -1,0 +1,10 @@
+base_dir: "/home/andrew/Documents/study/thesis/thesis-src/experiments/parameter_tuning/V1_0__Tune_parameters_for_1l_network"
+optimizers:
+  - SGD:
+      lr: [ 0.0001, 0.001, 0.01, 0.1 ]
+      momentum: [ 0.9 ]
+      weight_decay: [0, 0.1]
+  - Adam:
+      lr: [ 0.00001, 0.0005, 0.00075, 0.0001 ]
+      weight_decay: [0, 0.1]
+batch_size: [ 32, 64 ]
