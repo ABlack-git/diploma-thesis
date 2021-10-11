@@ -1,0 +1,15 @@
+db_config:
+  db: im2gps
+  host: localhost
+  port: 51998
+dataset_file: "/home/andrew/Documents/study/thesis/thesis-src/resources/descriptor_ids.json"
+test_dataset: "train_query"
+properties:
+  results_dir: "/home/andrew/Documents/study/thesis/thesis-src/experiments/network_testing/V1_0__Test_v1_1_trained_on_v2_0"
+  k: 70
+  print_freq: 10
+batch_size: 512
+num_workers: 0
+net_cfg_path: "/home/andrew/Documents/study/thesis/thesis-src/experiments/networks/V1_1__2layers_network_after_kde_rework.yaml"
+load_path: "/home/andrew/Documents/study/thesis/thesis-src/experiments/training/V2_0__Train_v1_1_model_on_v2_0_ds/checkpoints/checkpoint_epoch-9_2021-10-06/model_state.pth"
+gpu_id: 0

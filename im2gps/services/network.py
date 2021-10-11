@@ -566,7 +566,7 @@ class NetworkTestService:
         if config.load_path is not None:
             log.info(f"Loading network from {config.load_path}")
             net_state_dict = torch.load(config.load_path)
-            net.laod_state_dict(net_state_dict)
+            net.load_state_dict(net_state_dict)
         test_service = cls(net, db_loader, test_loader, config.properties)
         log.info("test service initialization complete")
         return test_service
