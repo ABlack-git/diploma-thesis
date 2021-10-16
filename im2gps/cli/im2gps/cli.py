@@ -3,7 +3,7 @@ import logging
 
 from mongoengine import connect
 from im2gps.conf import config
-from im2gps.cli.im2gps import data, index, localisation
+from im2gps.cli.im2gps import data, index, localisation, stats
 from omegaconf import OmegaConf
 
 log = logging.getLogger(__name__)
@@ -32,6 +32,7 @@ def entry_point(config_path, no_db, verbosity, show_config):
 entry_point.add_command(data.data)
 entry_point.add_command(localisation.localisation)
 entry_point.add_command(index.index)
+entry_point.add_command(stats.stats)
 
 if __name__ == '__main__':
     entry_point()

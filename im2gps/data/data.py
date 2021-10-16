@@ -1,5 +1,7 @@
 import os
 import pickle
+from PIL import Image
+import numpy as np
 
 from typing import Tuple, List
 
@@ -60,6 +62,8 @@ class DirectoryIterator:
         names = os.listdir(path)
         dirs, non_dirs = [], []
         for name in names:
+            if not self.follow_hidden and self.__path_is_hidden(name):
+                continue
             if os.path.isdir(os.path.join(path, name)):
                 dirs.append(os.path.join(path, name))
             else:
@@ -87,3 +91,26 @@ class DirectoryIterator:
                 return pickle.load(file)
         else:
             return cls(root_dir, checkpoint_path, **kwargs)
+
+
+class ImageLoader:
+    def __init__(self, root_dir):
+        self.id_to_path = dict()
+        self.root_dir = root_dir
+
+        self.__init()
+
+    def __init(self):
+        dir_iter = DirectoryIterator(self.root_dir, None)
+
+        for path in dir_iter:
+            image_id = os.path.basename(path).split(".")[0].split("_")[0]
+            self.id_to_path[int(image_id)] = path
+
+    def get_image_by_id(self, image_id):
+        if image_id in self.id_to_path:
+            img_path = self.id_to_path[image_id]
+            img = Image.open(img_path, "r")
+            return np.asarray(img)
+        else:
+            raise ValueError(f"Image with id {image_id} does not exist")
