@@ -8,7 +8,8 @@ import im2gps.core.nn.layers as im2gps_layers
 
 
 class Im2GPSNetwork(nn.Module):
-    def __init__(self, transformations_list: list, name, network_config, d2w=None, kde=None, transform_only=True):
+    def __init__(self, transformations_list: list, name, network_config, d2w=None, kde=None, softmax=None,
+                 transform_only=True):
         super().__init__()
         self.name = name
         self.network_cofig = network_config
@@ -16,6 +17,7 @@ class Im2GPSNetwork(nn.Module):
         self.transform_only = transform_only
         self.d2w: im2gps_layers.Descriptors2Weights = d2w
         self.kde: im2gps_layers.KDE = kde
+        self.softmax: im2gps_layers.Im2GPSSoftmax = softmax
 
     def forward(self, query=None, neighbours=None, n_coords=None, in_descriptors=None):
         if not self.training:
@@ -29,7 +31,11 @@ class Im2GPSNetwork(nn.Module):
             q = self.transformations(query)
             descriptors = self.transformations(neighbours)
             weights = self.d2w(q, descriptors)
-            out = self.kde(weights, n_coords)
+            kde = self.kde(weights, n_coords)
+            if self.softmax is not None:
+                out = self.softmax(kde)
+            else:
+                out = kde
             return out
 
     def __str__(self):
@@ -58,6 +64,8 @@ class Im2GPSNetworkInitializer:
                 custom_layers['kde'] = layer
             elif layer.__class__.__name__ == 'Descriptors2Weights':
                 custom_layers['d2w'] = layer
+            elif layer.__class__.__name__ == 'Im2GPSSoftmax':
+                custom_layers['softmax'] = layer
             else:
                 raise ValueError(f"Unknown layer: {layer.__class__.__name__}")
         return custom_layers

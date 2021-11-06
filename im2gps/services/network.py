@@ -219,15 +219,17 @@ class NetworkTrainService:
 
 
 class TrainServiceBuilder:
-    def __init__(self, train_config: TrainConfig):
+    def __init__(self, train_config: TrainConfig, net_config=None):
         self.train_cfg = train_config
+        self.net_config = net_config
 
         self.__opt_builder = OptimizerBuilder()
 
     def __init_network(self):
-        net_config = _read_network_config(self.train_cfg.net_config_path)
+        if self.net_config is None:
+            self.net_config = _read_network_config(self.train_cfg.net_config_path)
         os.environ['CUDA_VISIBLE_DEVICES'] = str(self.train_cfg.properties.gpu_id)
-        net = Im2GPSNetworkInitializer(net_config).init_network()
+        net = Im2GPSNetworkInitializer(self.net_config).init_network()
         net.cuda()
         return net
 
@@ -366,28 +368,57 @@ class ParameterSelectionService:
     def __init__(self, config: dict, train_config: TrainConfig):
         self.config = config
         self.train_config = train_config
+        self.net_config = _read_network_config(train_config.net_config_path)
 
         self.__train_service: t.Union[NetworkTrainService, None] = None
 
     def _get_run_configs(self):
-        configs = []
+        optimizers = []
         for optimizer in self.config['optimizers']:
             name, params = tuple(optimizer.items())[0]
             params_product = product(*params.values())
-            for params_values, batch_size in product(params_product, self.config['batch_size']):
+            for params_values in params_product:
                 params_as_dict = dict(zip(params.keys(), params_values))
-                config = ParametersRunConfig(
-                    optimizer_config=OmegaConf.create({name: params_as_dict}),
-                    batch_size=batch_size,
-                    optimizer_name=name,
-                    optimizer_params=params_as_dict)
-                configs.append(config)
+                optimizer_conf = {name: params_as_dict}
+                optimizers.append(optimizer_conf)
+
+        batch_sizes = [None]
+        if "batch_size" in self.config:
+            batch_sizes = self.config['batch_size']
+
+        soft_max_temps = [None]
+        if "softmax_temperature" in self.config:
+            soft_max_temps = self.config["softmax_temperature"]
+        configs = []
+        for optimizer, batch_size, temp in product(optimizers, batch_sizes, soft_max_temps):
+            config = ParametersRunConfig(
+                optimizer_config=optimizer,
+                optimizer_name=list(optimizer.keys())[0],
+                optimizer_params=optimizer[list(optimizer.keys())[0]],
+                batch_size=batch_size,
+                softmax_temperature=temp
+            )
+            configs.append(config)
+
         return configs
 
-    def _init_train_service(self, train_config):
+    def _get_train_config(self, run_config: 'ParametersRunConfig'):
+        train_config = copy.deepcopy(self.train_config)
+        train_config.optimizer_config = run_config.optimizer_config
+        if run_config.batch_size is not None:
+            train_config.data_config.batch_size = run_config.batch_size
+        return train_config
+
+    def _get_net_config(self, run_config: 'ParametersRunConfig'):
+        net_config = copy.deepcopy(self.net_config)
+        if run_config.softmax_temperature is not None:
+            net_config['network']['custom_layers'][2]["Im2GPSSoftmax"]["temperature"] = run_config.softmax_temperature
+        return net_config
+
+    def _init_train_service(self, train_config, net_config):
         if self.__train_service is not None:
             del self.__train_service
-        self.__train_service = TrainServiceBuilder(train_config).init()
+        self.__train_service = TrainServiceBuilder(train_config, net_config).init()
 
     def grid_search(self):
         run_configs = self._get_run_configs()
@@ -399,11 +430,10 @@ class ParameterSelectionService:
 
             log.info(f"Running parameter selection task: {i + 1}/{len(run_configs)}")
             log.info(f"Current parameters: {run_config.get_params_as_dict()}")
-            train_config = copy.deepcopy(self.train_config)
-            train_config.optimizer_config = run_config.optimizer_config
-            train_config.data_config.batch_size = run_config.batch_size
+            train_config = self._get_train_config(run_config)
+            net_config = self._get_net_config(run_config)
 
-            self._init_train_service(train_config)
+            self._init_train_service(train_config, net_config)
 
             losses = self.__train_service.train()
 
@@ -425,15 +455,17 @@ class ParametersRunConfig:
     optimizer_name: str
     optimizer_params: dict
     batch_size: int
+    softmax_temperature: float
 
     def __str__(self):
         params = '-'.join([f"{k}-{v}" for k, v in self.optimizer_params.items()])
-        return f"{self.optimizer_name}-{params}-batch-size-{self.batch_size}"
+        return f"{self.optimizer_name}-{params}-batch-size-{self.batch_size}-temp-{self.softmax_temperature}"
 
     def get_params_as_dict(self):
         return {
             **{'optimizer': self.optimizer_name,
-               'batch_size': self.batch_size},
+               'batch_size': self.batch_size,
+               'softmax_temperature': self.softmax_temperature},
             **self.optimizer_params
         }
 

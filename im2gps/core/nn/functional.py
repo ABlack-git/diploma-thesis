@@ -94,10 +94,6 @@ def multivariate_normal_pdf(x: torch.Tensor, mu: torch.Tensor, cov: torch.Tensor
     assert x.shape[-1] == mu.shape[-1], f"mu {list(mu.shape)} and x {list(x.shape)} must have same last dimension size"
 
     k = x.shape[-1]
-    # if len(sigma.shape) == 0 or len(sigma.shape) == 1:
-    #     cov = torch.eye(k) * sigma
-    # else:
-    #     cov = sigma
     det = cov.det()
     inv = torch.inverse(cov)
 
@@ -133,17 +129,13 @@ def kde(weights: torch.Tensor, coordinates, sigma):
         weighted_pdfs = torch.einsum('n,mn -> mn', weights, pdfs)
         pdf = torch.einsum('mn->m', weighted_pdfs)
         normalize_by = 1 / (weights.sum() * torch.pow(cov.det(), 0.5))
-        return torch.log(pdf / normalize_by)
-        # i = torch.argmax(pdf)
-        # return coordinates[i]
+        return pdf / normalize_by
     elif len(pdfs.shape) == 3:
         weighted_pdfs = torch.einsum('bn,bmn -> bmn', weights, pdfs)
         pdf = torch.einsum('bmn->bm', weighted_pdfs)
         normalize_by = 1 / (weights.sum(dim=1) * torch.pow(cov.det(), 0.5))
         normalize_by = normalize_by.unsqueeze(0).t()
-        return torch.log(pdf / normalize_by)
-        # i = torch.argmax(pdf, dim=1)
-        # return coordinates[torch.arange(pdf.shape[0]), i]
+        return pdf / normalize_by
     else:
         raise ValueError(f"Wrong dimension of pdfs {list(pdfs.shape)}")
 
@@ -158,9 +150,26 @@ def haversine_loss(predicted, ground_true, units=NNEnum.HAV_KILOMETERS):
     return torch.mean(haversine_distance(predicted, ground_true, units))
 
 
-def haversine_distance(x, y, units=NNEnum.HAV_KILOMETERS):
+def _haversine(lng1, lat1, lng2, lat2, units):
     radius = torch.tensor(6371.0088)  # Earth radius
+    lng1_rad = torch.deg2rad(lng1)
+    lat1_rad = torch.deg2rad(lat1)
 
+    lng2_rad = torch.deg2rad(lng2)
+    lat2_rad = torch.deg2rad(lat2)
+
+    hav_lng = torch.sin((lng2_rad - lng1_rad) * 0.5) ** 2
+    hav_lat = torch.sin((lat2_rad - lat1_rad) * 0.5) ** 2
+
+    x = hav_lat + torch.cos(lat1_rad) * torch.cos(lat2_rad) * hav_lng
+
+    if units == NNEnum.HAV_KILOMETERS:
+        return 2 * radius * torch.asin(torch.sqrt(x))
+    elif units == NNEnum.HAV_METERS:
+        return 2 * radius * torch.asin(torch.sqrt(x)) * 1000
+
+
+def haversine_distance(x, y, units=NNEnum.HAV_KILOMETERS):
     if len(x.shape) == 2 and len(y.shape) == 2:
         lng1 = x[:, 0]
         lat1 = x[:, 1]
@@ -176,21 +185,24 @@ def haversine_distance(x, y, units=NNEnum.HAV_KILOMETERS):
     else:
         raise ValueError("Dimension error")
 
-    lng1 = torch.deg2rad(lng1)
-    lat1 = torch.deg2rad(lat1)
+    return _haversine(lng1, lat1, lng2, lat2, units)
 
-    lng2 = torch.deg2rad(lng2)
-    lat2 = torch.deg2rad(lat2)
 
-    hav_lng = torch.sin((lng2 - lng1) * 0.5) ** 2
-    hav_lat = torch.sin((lat2 - lat1) * 0.5) ** 2
+def haversine_distance_over_space(coordinate_space, true_coords, units=NNEnum.HAV_KILOMETERS):
+    """
+    :param coordinate_space: BxNx2
+    :param true_coords: Bx2
+    :param units: units to use
+    """
+    assert len(coordinate_space.shape) == 3 and len(true_coords.shape) == 2, \
+        "coordinate_space and true_coords should have batch dimension"
+    lng1 = coordinate_space[:, :, 0]
+    lat1 = coordinate_space[:, :, 1]
 
-    x = hav_lat + torch.cos(lat1) * torch.cos(lat2) * hav_lng
+    lng2 = true_coords[:, 0].unsqueeze(1)
+    lat2 = true_coords[:, 1].unsqueeze(1)
 
-    if units == NNEnum.HAV_KILOMETERS:
-        return 2 * radius * torch.asin(torch.sqrt(x))
-    elif units == NNEnum.HAV_METERS:
-        return 2 * radius * torch.asin(torch.sqrt(x)) * 1000
+    return _haversine(lng1, lat1, lng2, lat2, units)
 
 
 def l2_normalization(x, eps=1e-6):
@@ -198,10 +210,6 @@ def l2_normalization(x, eps=1e-6):
 
 
 def kde_loss(pdf, coordinate_space, true_coords):
-    assert len(coordinate_space.shape) == 3, "For now kde_loss works only with batches"
-    b, n = pdf.shape
-    dists = torch.zeros(b, n).cuda()
-    for i in range(n):
-        dists[:, i] = haversine_distance(coordinate_space[:, i], true_coords)
+    dists = haversine_distance_over_space(coordinate_space, true_coords)
     target = torch.argmin(dists, dim=1)
-    return torch.nn.functional.cross_entropy(pdf, target)
+    return torch.nn.functional.nll_loss(pdf, target)

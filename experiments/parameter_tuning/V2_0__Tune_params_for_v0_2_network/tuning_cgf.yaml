@@ -1,0 +1,7 @@
+base_dir: "/home/andrew/Documents/study/thesis/thesis-src/experiments/parameter_tuning/V2_0__Tune_params_for_v0_2_network"
+optimizers:
+    - SGD:
+        lr: [ 0.01, 0.1, 1 ]
+        momentum: [ 0.9 ]
+batch_size: [ 32, 64 ]
+softmax_temperature: [100, 500, 1000]
