@@ -19,6 +19,8 @@ class Im2GPSNetwork(nn.Module):
         self.kde: im2gps_layers.KDE = kde
         self.softmax: im2gps_layers.Im2GPSSoftmax = softmax
 
+        self._recorded_data = dict()
+
     def forward(self, query=None, neighbours=None, n_coords=None, in_descriptors=None):
         if not self.training:
             assert in_descriptors is not None, "Descriptors should be provided"
@@ -31,12 +33,45 @@ class Im2GPSNetwork(nn.Module):
             q = self.transformations(query)
             descriptors = self.transformations(neighbours)
             weights = self.d2w(q, descriptors)
+
+            self._record_data("weights", weights)
             kde = self.kde(weights, n_coords)
+            self._record_data("kde", kde)
             if self.softmax is not None:
                 out = self.softmax(kde)
+                self._record_data("softmax", out)
             else:
                 out = kde
             return out
+
+    def _record_data(self, key, value):
+        self._recorded_data[key] = value
+
+    @property
+    def last_weights(self):
+        if "weights" in self._recorded_data:
+            return self._recorded_data["weights"]
+        else:
+            return None
+
+    @property
+    def last_density(self):
+        if "kde" in self._recorded_data:
+            return self._recorded_data["kde"]
+        else:
+            return None
+
+    @property
+    def last_softmax(self):
+        if "softmax" in self._recorded_data:
+            return self._recorded_data["softmax"]
+        else:
+            return None
+
+    def get_trainable_parameters(self):
+        for name, param in self.named_parameters():
+            if param.requires_grad:
+                yield name, param.data
 
     def __str__(self):
         return yaml.dump(self.network_cofig, default_flow_style=False)

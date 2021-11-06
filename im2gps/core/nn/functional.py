@@ -209,7 +209,15 @@ def l2_normalization(x, eps=1e-6):
     return x / (torch.norm(x, p=2, dim=1, keepdim=True) + eps).expand_as(x)
 
 
-def kde_loss(pdf, coordinate_space, true_coords):
+def accuracy(predicted, target):
+    y = torch.argmax(predicted, dim=1)
+    return torch.sum(y == target) / target.shape[0]
+
+
+def get_target_index(coordinate_space, true_coords):
     dists = haversine_distance_over_space(coordinate_space, true_coords)
-    target = torch.argmin(dists, dim=1)
+    return torch.argmin(dists, dim=1)
+
+
+def kde_loss(pdf, target):
     return torch.nn.functional.nll_loss(pdf, target)
