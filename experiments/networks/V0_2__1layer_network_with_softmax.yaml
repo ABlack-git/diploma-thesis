@@ -18,7 +18,7 @@ network:
         sigma: 0.001
         trainable: false
     - Im2GPSSoftmax:
-        temperature: 500
+        temperature: 1e9
 
 
 

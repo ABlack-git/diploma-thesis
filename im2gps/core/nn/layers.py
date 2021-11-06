@@ -75,5 +75,5 @@ class KDELoss(nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, pdf, coord_space, true_coords):
-        return f.kde_loss(pdf, coord_space, true_coords)
+    def forward(self, pdf, target):
+        return f.kde_loss(pdf, target)
