@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as tf
 
 import im2gps.core.nn.functional as f
 from im2gps.core.nn.enum import NNEnum
@@ -47,12 +48,7 @@ class KDE(nn.Module):
         :param coordinates: BxNx2
         :return:
         """
-        pdf = f.kde(weights, coordinates, self.sigma)
-        if self.training:
-            return pdf
-        else:
-            # get points with max prob in coordinates
-            pass
+        return f.kde(weights, coordinates, self.sigma)
 
     def __repr__(self):
         return self.__class__.__name__ + f'(sigma={self.sigma})'
@@ -64,6 +60,15 @@ class HaversineLoss(nn.Module):
 
     def forward(self, predicted, ground_true):
         return f.haversine_loss(predicted, ground_true)
+
+
+class Im2GPSSoftmax(nn.Module):
+    def __init__(self, temperature):
+        super().__init__()
+        self.temperature = nn.Parameter(data=torch.tensor(temperature), requires_grad=False)
+
+    def forward(self, x):
+        return tf.log_softmax(x * self.temperature, dim=1)
 
 
 class KDELoss(nn.Module):

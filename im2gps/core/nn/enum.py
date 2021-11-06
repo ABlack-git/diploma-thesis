@@ -6,3 +6,5 @@ class NNEnum(Enum):
     COS_DIST = "cos_dist"
     HAV_KILOMETERS = "hav_kilometers"
     HAV_METERS = "hav_meters"
+    SOFTMAX = "softmax"
+    LOG_SOFTMAX = "log_softmax"
