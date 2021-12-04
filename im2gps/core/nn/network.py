@@ -12,7 +12,7 @@ class Im2GPSNetwork(nn.Module):
                  transform_only=True):
         super().__init__()
         self.name = name
-        self.network_cofig = network_config
+        self.network_config = network_config
         self.transformations = None if transformations_list is None else nn.Sequential(*transformations_list)
         self.transform_only = transform_only
         self.d2w: im2gps_layers.Descriptors2Weights = d2w
@@ -33,16 +33,21 @@ class Im2GPSNetwork(nn.Module):
             q = self.transformations(query)
             descriptors = self.transformations(neighbours)
             weights = self.d2w(q, descriptors)
-
             self._record_data("weights", weights)
-            kde = self.kde(weights, n_coords)
-            self._record_data("kde", kde)
-            if self.softmax is not None:
-                out = self.softmax(kde)
-                self._record_data("softmax", out)
-            else:
+
+            out = weights
+            if self.kde is not None:
+                kde = self.kde(weights, n_coords)
+                self._record_data("kde", kde)
                 out = kde
-            return out
+
+            if self.softmax is not None:
+                net_out = self.softmax(out)
+                self._record_data("softmax", net_out)
+            else:
+                net_out = out
+
+            return net_out
 
     def _record_data(self, key, value):
         self._recorded_data[key] = value
@@ -74,7 +79,7 @@ class Im2GPSNetwork(nn.Module):
                 yield name, param.data
 
     def __str__(self):
-        return yaml.dump(self.network_cofig, default_flow_style=False)
+        return yaml.dump(self.network_config, default_flow_style=False)
 
 
 class Im2GPSNetworkInitializer:
