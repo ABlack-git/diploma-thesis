@@ -1,0 +1,21 @@
+network:
+  restore_from:
+  name: "V2.0 2 layer network without kde"
+  transform_only: false
+  transformation_layers:
+    - Linear:
+        in_features: 2048
+        out_features: 2048
+        bias: true
+    - L2NormalizationLayer:
+
+  custom_layers:
+    - Descriptors2Weights:
+        m: 3
+        trainable: false
+        dist_type: l2_dist
+    - Im2GPSSoftmax:
+        temperature: 250
+
+
+

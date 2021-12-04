@@ -1,0 +1,33 @@
+net_config_path: "/home/andrew/Documents/study/thesis/thesis-src/experiments/networks/V2_0__No_kde_2layer_network.yaml"
+optimizer_config:
+  SGD:
+    lr: 0.01
+    momentum: 0.9
+data_config:
+  db_config:
+    db: im2gps
+    host: localhost
+    port: 51998
+  train_ds: "/home/andrew/Documents/study/thesis/thesis-src/experiments/datasets/V3_0__Intersection_dataset/train_ds.json"
+  val_ds: "/home/andrew/Documents/study/thesis/thesis-src/experiments/datasets/V3_0__Intersection_dataset/val_ds.json"
+  batch_size: 64
+  num_workers: 0
+properties:
+  base_dir: "/home/andrew/Documents/study/thesis/thesis-src/experiments/training/V6_1__Train_v2_0_network_on_v3_0_intersection_ds"
+  print_freq: 5
+  sma_window: 10
+  num_epochs: 6
+  gpu_id: 0
+  validate: true
+  test: true
+  save_checkpoint: true
+  summary_writer: true
+  test_freq: 2
+test_config:
+  batch_size: 512
+  dataset_file: "/home/andrew/Documents/study/thesis/thesis-src/resources/descriptor_ids.json"
+  test_dataset: "validation_query"
+  properties:
+    results_dir: ${properties.base_dir}/test_results
+    k: 30
+    print_freq: 10

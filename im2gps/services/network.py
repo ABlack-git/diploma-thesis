@@ -48,9 +48,13 @@ class NetworkStatCollector:
         self.file_name = "stats_{}.json"
 
     def add_data_in_batch(self, epoch, batch_q_id, batch_n_ids, batch_weights, batch_densities, batch_softmax):
+        if batch_densities is None:
+            batch_densities = batch_n_ids.shape[0] * [None]
         batch_zip = zip(batch_q_id, batch_n_ids, batch_weights, batch_densities, batch_softmax)
         for q_id, n_ids, w, dens, sm in batch_zip:
-            record = NetworkStatCollector.StatRecord(epoch, q_id.item(), n_ids.tolist(), w.tolist(), dens.tolist(),
+            if dens is not None:
+                dens = dens.tolist()
+            record = NetworkStatCollector.StatRecord(epoch, q_id.item(), n_ids.tolist(), w.tolist(), dens,
                                                      sm.tolist())
             self.data.append(record)
 
@@ -95,6 +99,7 @@ class NetworkTrainService:
 
     def train(self):
         losses = []
+        accuracies = []
         for epoch in range(self.start_epoch, self.properties.num_epochs):
             log.info(f"Starting epoch number {epoch}")
             loss, acc = self._train_for_one_epoch(epoch)
@@ -110,6 +115,7 @@ class NetworkTrainService:
                 log.info(f"Average validation accuracy: {val_acc:.3f}")
 
             losses.append({"loss": loss, "validation_loss": validation_loss, "epoch": epoch})
+            accuracies.append({"train_acc": acc, "validation_acc": val_acc, "epoch": epoch})
 
             if self.test_service is not None and (epoch + 1) % self.properties.test_freq == 0:
                 log.info("Running test...")
@@ -147,7 +153,7 @@ class NetworkTrainService:
                                         self.min_loss)
                 self._save_train_checkpoint(checkpoint, is_best)
 
-        return losses
+        return losses, accuracies
 
     def _train_for_one_epoch(self, current_epoch):
         loss_stat = Stats(self.properties.sma_window)
@@ -497,16 +503,19 @@ class ParameterSelectionService:
 
             self._init_train_service(train_config, net_config)
 
-            losses = self.__train_service.train()
+            losses, accuracies = self.__train_service.train()
 
             for loss_stat in losses:
                 sw.add_scalar("Loss/train", loss_stat['loss'], loss_stat['epoch'])
                 sw.add_scalar("Loss/validation", loss_stat['validation_loss'], loss_stat['epoch'])
 
-                sw.add_hparams(hparam_dict=run_config.get_params_as_dict(),
-                               metric_dict={"Hparam/train_loss": loss_stat['loss'],
-                                            "Hparam/validation_loss": loss_stat['validation_loss']},
-                               run_name=str(run_config))
+                # sw.add_hparams(hparam_dict=run_config.get_params_as_dict(),
+                #                metric_dict={"Hparam/train_loss": loss_stat['loss'],
+                #                             "Hparam/validation_loss": loss_stat['validation_loss']},
+                #                run_name=str(run_config))
+            for acc_stat in accuracies:
+                sw.add_scalar("Accuracy/train", acc_stat['train_acc'], acc_stat['epoch'])
+                sw.add_scalar("Accuracy/validation", acc_stat['validation_acc'], acc_stat['epoch'])
 
             sw.close()
 
@@ -575,7 +584,10 @@ class NetworkTestService:
             coords_list.extend(coordinates.tolist())
 
         log.info("Building and fitting localisation model")
-        sigma = self.net.kde.sigma.item()
+        if self.net.kde is not None:
+            sigma = self.net.kde.sigma.item()
+        else:
+            sigma = 0.001
         m = self.net.d2w.m.item()
         model = LocalisationModel(LocalisationType.KDE, index, sigma=sigma, m=m, k=self.properties.k)
         model.fit(ids_list, coords_list)
