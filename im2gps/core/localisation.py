@@ -1,8 +1,13 @@
+import time
+
 import logging
 import numpy as np
 import typing as t
 from enum import Enum
 from KDEpy import NaiveKDE
+from multiprocessing import Pool
+
+import im2gps.utils as utils
 from im2gps.core.index import IndexType, Index, IndexBuilder, IndexConfig
 
 log = logging.getLogger(__name__)
@@ -56,12 +61,14 @@ def cosine_similarity_weights(dists: np.ndarray, m):
 
 
 class LocalisationModel:
-    def __init__(self, localisation_type, index: t.Union[Index, IndexConfig], sigma=0.1, m=1, k=1):
+    def __init__(self, localisation_type, index: t.Union[Index, IndexConfig], sigma=0.1, m=1, k=1, num_workers=0):
         self.sigma: float = sigma
         self.m: int = m
         self.k = k
         self.localisation_type = localisation_type
+        self.num_workers = num_workers
         self._index = index
+        self._index_config = None
         self._trained: bool = False
         self._coordinate_map = None
 
@@ -75,9 +82,10 @@ class LocalisationModel:
             self._coordinate_map = {photo_id: coordinate for photo_id, coordinate in
                                     zip(ids, coordinates)}
             if isinstance(self._index, IndexConfig):
-                if self._index.index_dir is not None:
+                self._index_config = self._index
+                if self._index_config.index_dir is not None:
                     log.debug("Index directory was provided, will load index from disk")
-                    self._index = IndexBuilder(self._index).build()
+                    self._load_index()
                 else:
                     log.debug("Building index...")
                     self._index = IndexBuilder(self._index, descriptors, ids).build()
@@ -109,12 +117,10 @@ class LocalisationModel:
 
         elif self.localisation_type == LocalisationType.KDE:
             log.debug(f"Running {LocalisationType.KDE.value} localisation")
-            locations = []
-            for nn_coords, dists in zip(coordinates, dists):
-                weights = self._get_weights(dists)
-                loc = self._kde(nn_coords, weights)
-                locations.append(loc)
-            log.debug(f"Finished {LocalisationType.KDE.value} localisation")
+            start = time.time()
+            locations = self._kde_localisation(coordinates, dists)
+            end = time.time()
+            log.debug(f"Finished {LocalisationType.KDE.value} localisation in {end - start} seconds")
             return np.array(locations)
 
         elif self.localisation_type == LocalisationType.AVG or self.localisation_type == LocalisationType.WEIGHTED_AVG:
@@ -143,6 +149,39 @@ class LocalisationModel:
         points = get_grid(nn_coordinates, self.sigma)
         y = kde.evaluate(points)
         return points[np.argmax(y)]
+
+    def _kde_step(self, step_data):
+        nn_coords, nn_dists = step_data
+        weights = self._get_weights(nn_dists)
+        return self._kde(nn_coords, weights)
+
+    def _kde_localisation(self, coords, dists):
+        zipped_data = zip(coords, dists)
+        if self.num_workers == 0:
+            locations = []
+            for data in zipped_data:
+                locations.append(self._kde_step(data))
+        else:
+            log.debug(f"Using {self.num_workers} number of workers to run kde")
+            self._unload_index()
+            with Pool(processes=self.num_workers) as pool:
+                chunk_size = round(coords.shape[0] / self.num_workers)
+                locations = [res for res in pool.imap(self._kde_step, zipped_data, chunk_size)]
+            self._load_index()
+
+        return locations
+
+    def _unload_index(self):
+        log.debug(f"Unloading index, memory usage: {utils.get_memory_usage()}")
+        del self._index.index
+        log.debug(f"Index unloaded, memory usage: {utils.get_memory_usage()}")
+
+    def _load_index(self):
+        log.debug(f"Loading index, memory usage: {utils.get_memory_usage()}")
+        del self._index
+        self._index = None
+        self._index = IndexBuilder(self._index_config).build()
+        log.debug(f"Index loaded, memory usage: {utils.get_memory_usage()}")
 
     def __repr__(self):
         return f"LocalisationModel(localisation_type={self.localisation_type}, sigma={self.sigma}, m={self.m}, " \

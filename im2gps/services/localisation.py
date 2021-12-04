@@ -18,6 +18,7 @@ class ModelParameters:
     sigma: float = None
     m: float = None
     k: int = None
+    num_workers: int = 0
 
 
 @dataclass
@@ -40,7 +41,7 @@ class BenchmarkResult:
 def perform_localisation_benchmark(model_params: ModelParameters, index_config: IndexConfig,
                                    benchmark_params: BenchmarkParameters) -> BenchmarkResult:
     model = LocalisationModel(model_params.localisation_type, index_config, model_params.sigma,
-                              model_params.m, model_params.k)
+                              model_params.m, model_params.k, model_params.num_workers)
     log.info(f"Localisation model: {repr(model)}")
 
     if index_config.index_dir is None:

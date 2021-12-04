@@ -83,6 +83,7 @@ class ModelConfig:
     sigma: float = MISSING
     m: float = MISSING
     k: int = MISSING
+    num_workers: int = MISSING
 
 
 # ----- INDEX CONFIG ----- #

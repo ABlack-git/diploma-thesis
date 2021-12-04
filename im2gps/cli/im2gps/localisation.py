@@ -31,6 +31,7 @@ def localisation():
                      help="Parameter required for KDE. This corresponds to standard deviation of distribution used "
                           "in KDE. Default value is None")
 @model_config.option("-m", type=float, default=None, help="Parameter required for kde and avg localisation")
+@model_config.option("--num-workers", "-w", type=int, default=0, help="Number ow workers to run in parallel")
 @index_config.option("--index-type", '-i', type=click.Choice([enum.value for enum in IndexType]),
                      default=IndexType.L2_INDEX.value,
                      help="Chose which index type to use. This will affect how distance between two descriptors i"
@@ -66,11 +67,13 @@ def test_localisation(**params):
         model_params.k = cfg.localisation_model.k
         model_params.m = cfg.localisation_model.m
         model_params.sigma = cfg.localisation_model.sigma
+        model_params.num_workers = cfg.localisation_model.num_workers
     else:
         model_params.localisation_type = LocalisationType(params['loc_type'])
         model_params.k = params['k']
         model_params.sigma = params['sigma']
         model_params.m = params['m']
+        model_params.num_workers = params['num_worker']
 
     index_params = IndexConfig()
     if params['index_config']:
