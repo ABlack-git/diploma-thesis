@@ -42,13 +42,14 @@ class KDE(nn.Module):
         super().__init__()
         self.sigma = nn.Parameter(data=torch.tensor(sigma), requires_grad=trainable)
 
-    def forward(self, weights, coordinates):
+    def forward(self, weights, coordinates, coordinate_space):
         """
         :param weights: BxN
         :param coordinates: BxNx2
+        :param coordinate_space: BxQx2
         :return:
         """
-        return f.kde(weights, coordinates, self.sigma)
+        return f.kde(weights, coordinates, coordinate_space, self.sigma)
 
     def __repr__(self):
         return self.__class__.__name__ + f'(sigma={self.sigma})'

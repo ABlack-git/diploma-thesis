@@ -5,11 +5,12 @@ import torch.nn as nn
 from abc import ABC
 
 import im2gps.core.nn.layers as im2gps_layers
+from im2gps.core.nn.functional import generate_grid
 
 
 class Im2GPSNetwork(nn.Module):
     def __init__(self, transformations_list: list, name, network_config, d2w=None, kde=None, softmax=None,
-                 transform_only=True):
+                 transform_only=True, grid_bw=3, grid_step=3):
         super().__init__()
         self.name = name
         self.network_config = network_config
@@ -18,10 +19,11 @@ class Im2GPSNetwork(nn.Module):
         self.d2w: im2gps_layers.Descriptors2Weights = d2w
         self.kde: im2gps_layers.KDE = kde
         self.softmax: im2gps_layers.Im2GPSSoftmax = softmax
-
+        self.grid_bw = grid_bw
+        self.grid_step = grid_step
         self._recorded_data = dict()
 
-    def forward(self, query=None, neighbours=None, n_coords=None, in_descriptors=None):
+    def forward(self, query=None, neighbours=None, n_coords=None, coord_space=None, in_descriptors=None):
         if not self.training:
             assert in_descriptors is not None, "Descriptors should be provided"
             return self.transformations(in_descriptors)
@@ -29,6 +31,7 @@ class Im2GPSNetwork(nn.Module):
             assert query is not None, "Query descriptor should be provided"
             assert neighbours is not None, "Neighbours descriptors should be provided"
             assert n_coords is not None, "Neighbour coordinates should be provided"
+            assert coord_space is not None, "Coordinate space should be provided"
 
             q = self.transformations(query)
             descriptors = self.transformations(neighbours)
@@ -37,7 +40,7 @@ class Im2GPSNetwork(nn.Module):
 
             out = weights
             if self.kde is not None:
-                kde = self.kde(weights, n_coords)
+                kde = self.kde(weights, n_coords, coord_space)
                 self._record_data("kde", kde)
                 out = kde
 
@@ -51,6 +54,9 @@ class Im2GPSNetwork(nn.Module):
 
     def _record_data(self, key, value):
         self._recorded_data[key] = value
+
+    def generate_grid(self, coordinates):
+        return generate_grid(coordinates, self.kde.sigma.item(), self.grid_bw, self.grid_step)
 
     @property
     def last_weights(self):

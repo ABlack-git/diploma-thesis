@@ -38,6 +38,7 @@ class TestProperties:
     results_dir: str = MISSING
     k: int = MISSING
     print_freq: int = MISSING
+    num_workers: int = MISSING
 
 
 @dataclass

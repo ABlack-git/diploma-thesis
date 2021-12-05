@@ -1,4 +1,5 @@
-from .enum import NNEnum
+import numpy as np
+from im2gps.core.nn.enum import NNEnum
 import math
 import torch
 import torch.nn.functional as f
@@ -112,27 +113,28 @@ def multivariate_normal_pdf(x: torch.Tensor, mu: torch.Tensor, cov: torch.Tensor
     return torch.pow(2 * pi, -k / 2) * torch.pow(det, -0.5) * torch.exp(-0.5 * exponent)
 
 
-def kde(weights: torch.Tensor, coordinates, sigma):
+def kde(weights: torch.Tensor, neighbour_coords, coord_space, sigma):
     """
     Compute weighted kernel density estimation and find data point with maximal probability
 
     :param weights: Weights corresponding to each data point.Tensor of size BxN or N, where B is batch size and N
     is number of data points.
-    :param coordinates: Coordinates that represent each data point. Tensor of size BxNx2, where B is batch size and
+    :param neighbour_coords: Coordinates that represent each data point. Tensor of size BxNx2, where B is batch size and
     N is is number of data points.
+    :param coord_space: BxQx2 points over which to perform KDE.
     :param sigma: Standard deviation of normal distribution
     :return: coordinates with maximal probability estimated using KDE
     """
-    cov = torch.eye(coordinates.shape[-1]).cuda() * sigma
-    pdfs = multivariate_normal_pdf(coordinates, coordinates, cov)  # BxNxN
+    cov = torch.eye(neighbour_coords.shape[-1]).cuda() * torch.abs(sigma)
+    pdfs = multivariate_normal_pdf(coord_space, neighbour_coords, cov)  # BxQxN
     if len(pdfs.shape) == 2:
         weighted_pdfs = torch.einsum('n,mn -> mn', weights, pdfs)
         pdf = torch.einsum('mn->m', weighted_pdfs)
         normalize_by = 1 / (weights.sum() * torch.pow(cov.det(), 0.5))
         return pdf / normalize_by
     elif len(pdfs.shape) == 3:
-        weighted_pdfs = torch.einsum('bn,bmn -> bmn', weights, pdfs)
-        pdf = torch.einsum('bmn->bm', weighted_pdfs)
+        weighted_pdfs = torch.einsum('bn,bmn -> bmn', weights, pdfs)  # BxQxN
+        pdf = torch.einsum('bmn->bm', weighted_pdfs)  # BxN
         normalize_by = 1 / (weights.sum(dim=1) * torch.pow(cov.det(), 0.5))
         normalize_by = normalize_by.unsqueeze(0).t()
         return pdf / normalize_by
@@ -221,3 +223,33 @@ def get_target_index(coordinate_space, true_coords):
 
 def kde_loss(pdf, target):
     return torch.nn.functional.nll_loss(pdf, target)
+
+
+def generate_grid(centers: torch.Tensor, sigma, bw, n):
+    """
+    :param centers: BxNx2
+    :param sigma:
+    :param bw:
+    :param n:
+    :return: BxQx2 array, where Q is N*(2*bw*n+1)*(2*bw*n+1)
+    """
+
+    centers_np = centers.numpy()
+
+    top_left = centers_np - (bw * sigma, -bw * sigma)
+    x_space = np.linspace(top_left[:, :, 0], top_left[:, :, 0] + (2 * bw * sigma), num=2 * bw * n + 1)
+    x_space = np.einsum('ibn->bni', x_space)  # just change order of dimensions to (batch,neighbour,i-th point)
+    y_space = np.linspace(top_left[:, :, 1], top_left[:, :, 1] - (2 * bw * sigma), num=2 * bw * n + 1)
+    y_space = np.einsum('ibn->bni', y_space)
+
+    batch_size = centers_np.shape[0]
+
+    grid_space = []
+    for batch in range(batch_size):
+        batch_grid_space = []
+        for x, y in zip(x_space[batch], y_space[batch]):
+            xx, yy = np.meshgrid(x, y)
+            batch_grid_space.append(np.vstack([xx.ravel(), yy.ravel()]).T)
+        grid_space.append(np.concatenate(batch_grid_space))
+
+    return torch.tensor(np.array(grid_space), dtype=torch.float32)

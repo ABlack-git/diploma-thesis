@@ -100,6 +100,16 @@ class NetworkTrainService:
     def train(self):
         losses = []
         accuracies = []
+
+        if self.test_service is not None:
+            log.info("Running test...")
+            results = self.test_service.test(test_run=0)
+            log.info(f"Test accuracy: {results.accuracy}")
+            if self.properties.summary_writer:
+                for threshold in dist_thresholds.keys():
+                    self.summary_writer.add_scalar(f"Accuracy/test_{threshold}",
+                                                   results.accuracy[threshold], 0)
+
         for epoch in range(self.start_epoch, self.properties.num_epochs):
             log.info(f"Starting epoch number {epoch}")
             loss, acc = self._train_for_one_epoch(epoch)
@@ -171,15 +181,17 @@ class NetworkTrainService:
             q = q.cuda()
             neighbours = neighbours.cuda()
             q_coords = q_coords.cuda()
+            coord_space = self.net.generate_grid(n_coords)
+            coord_space = coord_space.cuda()
             n_coords = n_coords.cuda()
-            out = self.net(query=q, neighbours=neighbours, n_coords=n_coords)
-            target = get_target_index(n_coords, q_coords)
+            out = self.net(query=q, neighbours=neighbours, n_coords=n_coords, coord_space=coord_space)
+            target = get_target_index(coord_space, q_coords)
             loss = self.criterion(out, target)
             accuracy_stat.current = accuracy(out, target)
             loss_stat.current = loss.item()
 
-            self.stats_collector.add_data_in_batch(current_epoch, q_ids, n_ids, self.net.last_weights,
-                                                   self.net.last_density, self.net.last_softmax)
+            # self.stats_collector.add_data_in_batch(current_epoch, q_ids, n_ids, self.net.last_weights,
+            #                                        self.net.last_density, self.net.last_softmax)
 
             loss.backward()
             self.optimizer.step()
@@ -199,7 +211,7 @@ class NetworkTrainService:
                          f"current: {accuracy_stat.current:.3f}]")
 
             start_time = time.time()
-        self.stats_collector.save(current_epoch)
+        # self.stats_collector.save(current_epoch)
         return loss_stat.avg, accuracy_stat.avg
 
     def validate(self, current_epoch):
@@ -212,12 +224,14 @@ class NetworkTrainService:
         for i, val_tuple in enumerate(self.val_loader):
             data_stat.current = time.time() - start_time
             q, neighbours, q_coords, n_coords, _, _ = val_tuple
+            coord_space = self.net.generate_grid(n_coords)
+            coord_space = coord_space.cuda()
             q = q.cuda()
             neighbours = neighbours.cuda()
             q_coords = q_coords.cuda()
             n_coords = n_coords.cuda()
             with torch.no_grad():
-                out = self.net(query=q, neighbours=neighbours, n_coords=n_coords)
+                out = self.net(query=q, neighbours=neighbours, n_coords=n_coords, coord_space=coord_space)
                 target = get_target_index(n_coords, q_coords)
                 accuracy_stat.current = accuracy(out, target)
                 loss = self.criterion(out, target)
@@ -283,9 +297,10 @@ class NetworkTrainService:
 
 
 class TrainServiceBuilder:
-    def __init__(self, train_config: TrainConfig, net_config=None):
+    def __init__(self, train_config: TrainConfig, net_config=None, summary_writer=None):
         self.train_cfg = train_config
         self.net_config = net_config
+        self.sw = summary_writer
 
         self.__opt_builder = OptimizerBuilder()
 
@@ -341,11 +356,14 @@ class TrainServiceBuilder:
         return val_loader
 
     def __init_summary_writer(self):
-        summary_log_dir = os.path.join(self.train_cfg.properties.base_dir, "runs")
-        log.debug(f"Summary log dir: {summary_log_dir}")
-        if not os.path.isdir(summary_log_dir):
-            os.makedirs(summary_log_dir)
-        return SummaryWriter(log_dir=summary_log_dir)
+        if self.sw is not None:
+            return self.sw
+        else:
+            summary_log_dir = os.path.join(self.train_cfg.properties.base_dir, "runs")
+            log.debug(f"Summary log dir: {summary_log_dir}")
+            if not os.path.isdir(summary_log_dir):
+                os.makedirs(summary_log_dir)
+            return SummaryWriter(log_dir=summary_log_dir)
 
     def __init_stats_collector(self):
         return NetworkStatCollector(self.train_cfg.properties.base_dir)
@@ -483,10 +501,10 @@ class ParameterSelectionService:
             net_config['network']['custom_layers'][2]["Im2GPSSoftmax"]["temperature"] = run_config.softmax_temperature
         return net_config
 
-    def _init_train_service(self, train_config, net_config):
+    def _init_train_service(self, train_config, net_config, sw):
         if self.__train_service is not None:
             del self.__train_service
-        self.__train_service = TrainServiceBuilder(train_config, net_config).init()
+        self.__train_service = TrainServiceBuilder(train_config, net_config, summary_writer=sw).init()
 
     def grid_search(self):
         run_configs = self._get_run_configs()
@@ -501,21 +519,17 @@ class ParameterSelectionService:
             train_config = self._get_train_config(run_config)
             net_config = self._get_net_config(run_config)
 
-            self._init_train_service(train_config, net_config)
+            self._init_train_service(train_config, net_config, sw)
 
-            losses, accuracies = self.__train_service.train()
+            self.__train_service.train()
 
-            for loss_stat in losses:
-                sw.add_scalar("Loss/train", loss_stat['loss'], loss_stat['epoch'])
-                sw.add_scalar("Loss/validation", loss_stat['validation_loss'], loss_stat['epoch'])
-
-                # sw.add_hparams(hparam_dict=run_config.get_params_as_dict(),
-                #                metric_dict={"Hparam/train_loss": loss_stat['loss'],
-                #                             "Hparam/validation_loss": loss_stat['validation_loss']},
-                #                run_name=str(run_config))
-            for acc_stat in accuracies:
-                sw.add_scalar("Accuracy/train", acc_stat['train_acc'], acc_stat['epoch'])
-                sw.add_scalar("Accuracy/validation", acc_stat['validation_acc'], acc_stat['epoch'])
+            # for loss_stat in losses:
+            #     sw.add_scalar("Loss/train", loss_stat['loss'], loss_stat['epoch'])
+            #     sw.add_scalar("Loss/validation", loss_stat['validation_loss'], loss_stat['epoch'])
+            #
+            # for acc_stat in accuracies:
+            #     sw.add_scalar("Accuracy/train", acc_stat['train_acc'], acc_stat['epoch'])
+            #     sw.add_scalar("Accuracy/validation", acc_stat['validation_acc'], acc_stat['epoch'])
 
             sw.close()
 
@@ -591,6 +605,7 @@ class NetworkTestService:
         m = self.net.d2w.m.item()
         model = LocalisationModel(LocalisationType.KDE, index, sigma=sigma, m=m, k=self.properties.k)
         model.fit(ids_list, coords_list)
+        del ids_list, coords_list
 
         log.info("Starting to load test descriptors")
         queries = []

@@ -28,7 +28,7 @@ def get_grid(centers, sigma, bw=3, n=3) -> np.ndarray:
     :param bw: bandwidth, number of sigmas to use for grid per axes
     :param n: number of points per sigma
     :return: N*(2 * bw * n + 1) * (2 * bw * n + 1) points, because (2 * bw * n + 1) * (2 * bw * n + 1) grid is created
-    for each point in centers.
+    for each point in centers. Shape of output array is (N*(2*bw*n+1)*(2*bw*n+1), 2)
     """
     tl = centers - (bw * sigma, -bw * sigma)  # transform centers of a grid to top left corner
     # 2 * bw * n + 1 is number of points on each axes of a grid
