@@ -67,8 +67,17 @@ class LocalisationModel:
         self.k = k
         self.localisation_type = localisation_type
         self.num_workers = num_workers
-        self._index = index
-        self._index_config = None
+        self._index: t.Optional[Index] = None
+        self._index_config: t.Optional[IndexConfig] = None
+
+        if isinstance(index, IndexConfig):
+            self._index_config = index
+        elif isinstance(index, Index):
+            self._index = index
+        else:
+            raise ValueError(
+                f"Unexpected type of index {type(self._index)}. Index should be instance of Index or IndexConfig")
+
         self._trained: bool = False
         self._coordinate_map = None
 
@@ -79,24 +88,35 @@ class LocalisationModel:
         """
         if not self._trained:
             log.debug("Fitting localisation model...")
-            self._coordinate_map = {photo_id: coordinate for photo_id, coordinate in
-                                    zip(ids, coordinates)}
-            if isinstance(self._index, IndexConfig):
-                self._index_config = self._index
+            self._coordinate_map = LocalisationModel.compute_coordinate_map(ids, coordinates)
+            if self._index_config is not None:
                 if self._index_config.index_dir is not None:
                     log.debug("Index directory was provided, will load index from disk")
                     self._load_index()
                 else:
                     log.debug("Building index...")
-                    self._index = IndexBuilder(self._index, descriptors, ids).build()
-            elif isinstance(self._index, Index):
+                    self._index = IndexBuilder(self._index_config, descriptors, ids).build()
+            elif self._index is not None:
                 log.debug(f"Using provided index {repr(self._index)}")
             else:
-                raise ValueError(
-                    f"Unexpected type of index {type(self._index)}. Index should be instance of Index or IndexConfig")
+                raise ValueError("Index config and index was both None")
             self._trained = True
         else:
             log.warning("Calling fit() function, but model is trained. Ignoring.")
+
+    @staticmethod
+    def compute_coordinate_map(ids, coordinates):
+        return {photo_id: coordinate for photo_id, coordinate in zip(ids, coordinates)}
+
+    def fit_from_coord_map(self, coordinate_map):
+        if not self._trained:
+            self._coordinate_map = coordinate_map
+
+            if self._index_config is not None and self._index_config.index_dir is not None:
+                self._load_index()
+            else:
+                raise ValueError(f"Index config should be not None and have index directory provided: "
+                                 f"{self._index_config}")
 
     def predict(self, data: np.ndarray) -> np.ndarray:
         log.debug(f"Searching {self.k} nearest neighbours...")
@@ -113,7 +133,7 @@ class LocalisationModel:
     def _localise(self, coordinates, dists) -> np.ndarray:
         if self.localisation_type == LocalisationType.NN:
             log.debug(f"Running {LocalisationType.NN.value} localisation")
-            return coordinates.squeeze()
+            return coordinates[:, 0].squeeze()
 
         elif self.localisation_type == LocalisationType.KDE:
             log.debug(f"Running {LocalisationType.KDE.value} localisation")
@@ -167,7 +187,7 @@ class LocalisationModel:
             with Pool(processes=self.num_workers) as pool:
                 chunk_size = round(coords.shape[0] / self.num_workers)
                 locations = [res for res in pool.imap(self._kde_step, zipped_data, chunk_size)]
-            self._load_index()
+            # self._load_index()
 
         return locations
 

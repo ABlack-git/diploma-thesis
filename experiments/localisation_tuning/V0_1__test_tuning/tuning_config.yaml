@@ -1,0 +1,19 @@
+grid:
+  localisation_type: ['avg', 'w_avgclc', 'kde']
+  k: [ 5,10 ]
+  sigma: [0.001, 0.0025]
+  m: [5]
+query_dataset: 'test_query'
+save_path: /home/andrew/Documents/study/thesis/thesis-src/experiments/localisation_tuning/V0_1__test_tuning/tune_results.json
+default_parameters:
+  localisation_type: kde
+  sigma: 0.001
+  m: 3
+  k: 10
+  num_workers: 6
+save_every: 2
+index_configs:
+  - index_dir: /home/andrew/Documents/study/thesis/indices/l2_512_index
+    index_type: "L2"
+    gpu_enabled: false
+    gpu_id: -1

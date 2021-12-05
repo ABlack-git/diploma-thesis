@@ -1,6 +1,11 @@
 import json
 import logging
+import time
+
 import numpy as np
+import typing as t
+from itertools import product
+from copy import copy
 from dataclasses import dataclass, field, asdict
 
 import im2gps.core.metric as metric
@@ -84,6 +89,86 @@ def perform_localisation_benchmark(model_params: ModelParameters, index_config: 
             json.dump(asdict(result), f)
 
     return result
+
+
+@dataclass
+class TuningParameters:
+    grid: t.Dict[str, t.List[t.Any]] = None
+    query_dataset: DatasetEnum = None
+    save_path: str = None
+    default_parameters: ModelParameters = None
+    save_every: int = None
+    index_configs: t.List[IndexConfig] = None
+
+
+def localisation_tuning(parameters: TuningParameters):
+    log.info("Getting ids and coords for training data")
+    ids, coordinates = MongoDescriptor.get_ids_and_coords(DatasetEnum.DATABASE)
+    log.info("Finished getting training data")
+    log.debug(f"Current memory usage: {utils.get_memory_usage():.2f}GB")
+
+    log.info(f"Getting query data")
+    q_ids, q_coordinates, q_descriptors = MongoDescriptor.get_data_as_arrays(dataset=parameters.query_dataset)
+    log.info("Finished getting query data")
+    log.debug(f"Current memory usage: {utils.get_memory_usage():.2f}GB")
+
+    coord_map = LocalisationModel.compute_coordinate_map(ids, coordinates)
+    grid_tuples = _param_grid(parameters.grid)
+    parameters_name = parameters.grid.keys()
+
+    records = []
+    for index_config in parameters.index_configs:
+        for i, tup in enumerate(grid_tuples):
+            start = time.time()
+            experiment_parameters = _tuple_to_dict(parameters_name, tup)
+            log.info(f"Tuning experiment: {i + 1}/{len(grid_tuples)}, index: {index_config.index_type.name}, "
+                     f"parameters: {experiment_parameters}")
+            model_params = _params_from_tuple(parameters_name, tup, parameters.default_parameters)
+            model = LocalisationModel(model_params.localisation_type, index_config, model_params.sigma, model_params.m,
+                                      model_params.k, model_params.num_workers)
+            model.fit_from_coord_map(coord_map)
+            predicted_locations = model.predict(q_descriptors)
+
+            result = _get_benchmark_results(predicted_locations, q_coordinates)
+            tuning_record = {
+                "index_type": index_config.index_type.value,
+                "parameters": experiment_parameters,
+                "accuracy": result.accuracy,
+                "errors": result.errors,
+                "predictions_by_dist": result.predictions_by_dist
+            }
+            records.append(tuning_record)
+            end = time.time()
+            log.info(f"Current iteration time: {end - start:.3f}s")
+            if (i + 1) % parameters.save_every == 0 or (i + 1) == len(grid_tuples):
+                log.info(f"Saving tuning results. Step: {i + 1}/{len(grid_tuples)}, "
+                         f"index: {index_config.index_type.name}, parameters: {experiment_parameters}")
+                _save_tuning_results(records, parameters.save_path)
+                log.info(f"Results saved to: {parameters.save_path}")
+
+
+def _save_tuning_results(records, path):
+    with open(path, "w") as f:
+        json.dump(records, f)
+
+
+def _param_grid(grid: dict) -> t.List[ModelParameters]:
+    return [tup for tup in product(*[val for val in grid.values()])]
+
+
+def _tuple_to_dict(keys, tup):
+    return {k: v for k, v in zip(keys, tup)}
+
+
+def _params_from_tuple(keys, tup, default_parameters):
+    new_model_param = copy(default_parameters)
+    for i, key in enumerate(keys):
+        if key == 'localisation_type':
+            val = LocalisationType(tup[i])
+        else:
+            val = tup[i]
+        setattr(new_model_param, key, val)
+    return new_model_param
 
 
 def _get_benchmark_results(pred_locations, true_locations, image_ids: np.ndarray = None) -> BenchmarkResult:

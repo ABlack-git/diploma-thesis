@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from omegaconf import MISSING
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 
 # ----- CREDENTIALS CONFIG ----- #
@@ -115,3 +115,13 @@ class Config:
     properties: PropertiesConfig = MISSING
     checkpoints: CheckpointsConfig = MISSING
     filters: FiltersConfig = MISSING
+
+
+@dataclass
+class TuningConfig:
+    grid: Dict[str, Any] = MISSING
+    query_dataset: str = MISSING
+    save_path: str = MISSING
+    default_parameters: ModelConfig = MISSING
+    save_every: int = MISSING
+    index_configs: List[IndexConfig] = MISSING
