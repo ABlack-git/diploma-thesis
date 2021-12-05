@@ -3,11 +3,13 @@ import json
 import logging
 from click_option_group import OptionGroup
 
-from im2gps.services.localisation import ModelParameters, BenchmarkParameters, perform_localisation_benchmark
-from im2gps.conf.config import ConfigRepo, Config
+from im2gps.services.localisation import (ModelParameters, BenchmarkParameters, perform_localisation_benchmark,
+                                          TuningParameters, localisation_tuning)
+from im2gps.conf.config import ConfigRepo, Config, load_config
 from im2gps.core.index import IndexType, IndexConfig
 from im2gps.core.localisation import LocalisationType
 from im2gps.data.descriptors import DatasetEnum
+import im2gps.conf.im2gps.configschema as schemas
 
 log = logging.getLogger(__name__)
 
@@ -31,6 +33,7 @@ def localisation():
                      help="Parameter required for KDE. This corresponds to standard deviation of distribution used "
                           "in KDE. Default value is None")
 @model_config.option("-m", type=float, default=None, help="Parameter required for kde and avg localisation")
+@model_config.option("--num-workers", "-w", type=int, default=0, help="Number ow workers to run in parallel")
 @index_config.option("--index-type", '-i', type=click.Choice([enum.value for enum in IndexType]),
                      default=IndexType.L2_INDEX.value,
                      help="Chose which index type to use. This will affect how distance between two descriptors i"
@@ -56,7 +59,7 @@ def localisation():
               help="If this flag is set will load index configuration from config file, ignoring provided parameters.")
 @click.option("--test-config", is_flag=True, default=False,
               help="If this flag is set will load test configuration from config file, ignoring provided parameters.")
-def test_localisation(**params):
+def test(**params):
     cfg: Config = ConfigRepo().get(Config.__name__)
     log.debug(f"Running test-localisation, input parameters: {params}")
 
@@ -66,11 +69,13 @@ def test_localisation(**params):
         model_params.k = cfg.localisation_model.k
         model_params.m = cfg.localisation_model.m
         model_params.sigma = cfg.localisation_model.sigma
+        model_params.num_workers = cfg.localisation_model.num_workers
     else:
         model_params.localisation_type = LocalisationType(params['loc_type'])
         model_params.k = params['k']
         model_params.sigma = params['sigma']
         model_params.m = params['m']
+        model_params.num_workers = params['num_worker']
 
     index_params = IndexConfig()
     if params['index_config']:
@@ -101,3 +106,33 @@ def test_localisation(**params):
 
     print(json.dumps({"accuracy": result.accuracy, "errors": result.errors,
                       "predictions_by_dist": result.predictions_by_dist}, indent=4))
+
+
+@localisation.command()
+@click.option("--tuning-config", "-c", type=str, help="Path to tuning config")
+def tune(tuning_config):
+    cfg: schemas.TuningConfig = load_config([tuning_config], schema=schemas.TuningConfig, base_cfg="tuning_config.yaml")
+
+    model_params = ModelParameters()
+    model_params.localisation_type = LocalisationType(cfg.default_parameters.localisation_type)
+    model_params.k = cfg.default_parameters.k
+    model_params.m = cfg.default_parameters.m
+    model_params.sigma = cfg.default_parameters.sigma
+    model_params.num_workers = cfg.default_parameters.num_workers
+
+    index_configs = []
+    for index_cfg in cfg.index_configs:  # type: schemas.IndexConfig
+        index_configs.append(IndexConfig(index_cfg.index_dir,
+                                         IndexType(index_cfg.index_type),
+                                         index_cfg.gpu_enabled,
+                                         index_cfg.gpu_id))
+
+    tuning_params = TuningParameters()
+    tuning_params.grid = cfg.grid
+    tuning_params.save_every = cfg.save_every
+    tuning_params.save_path = cfg.save_path
+    tuning_params.query_dataset = DatasetEnum(cfg.query_dataset)
+    tuning_params.default_parameters = model_params
+    tuning_params.index_configs = index_configs
+
+    localisation_tuning(tuning_params)

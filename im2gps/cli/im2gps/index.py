@@ -27,9 +27,9 @@ def save_index(**params):
         raise ValueError(f"path {params['path']} should be a directory")
 
     index_params = IndexConfig()
-    index_params.index_dir = params['path']
+    index_params.index_dir = None
     index_params.index_type = IndexType(params['index_type'])
     index_params.gpu_enabled = params['gpu_enabled']
     index_params.gpu_id = params['gpu_id']
 
-    create_and_save_index(index_params)
+    create_and_save_index(index_params, params['path'])

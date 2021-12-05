@@ -8,7 +8,7 @@ from im2gps.core.index import IndexConfig, IndexBuilder, INDEX_CLASS_FILE, INDEX
 log = logging.getLogger(__name__)
 
 
-def create_and_save_index(index_config: IndexConfig):
+def create_and_save_index(index_config: IndexConfig, save_path):
     log.info("Reading data from db...")
     ids, coordinates, descriptors = MongoDescriptor.get_data_as_arrays(DatasetEnum.DATABASE)
     log.info("Finished reading data from db")
@@ -17,12 +17,14 @@ def create_and_save_index(index_config: IndexConfig):
     index = IndexBuilder(index_config, descriptors, ids).build()
     log.info(f"Index built: {repr(index)}")
 
-    class_path = os.path.join(index_config.index_dir, INDEX_CLASS_FILE)
+    class_path = os.path.join(save_path, INDEX_CLASS_FILE)
     log.info(f"Saving class file to {class_path}")
     with open(class_path, "wb") as f:
+        index_config.index_dir = save_path
         pickle.dump(index_config, f)
+        index_config.index_dir = None
 
-    index_path = os.path.join(index_config.index_dir, INDEX_FILE_NAME)
+    index_path = os.path.join(save_path, INDEX_FILE_NAME)
     log.info(f"Saving index file to {index_path}")
     index.write_index(index_path)
 
