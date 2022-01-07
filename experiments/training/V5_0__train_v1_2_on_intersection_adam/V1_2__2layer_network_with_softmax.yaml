@@ -17,7 +17,7 @@ network:
   custom_layers:
     - Descriptors2Weights:
         m: 3
-        trainable: false
+        trainable: true
         dist_type: l2_dist
     - KDE:
         sigma: 0.001

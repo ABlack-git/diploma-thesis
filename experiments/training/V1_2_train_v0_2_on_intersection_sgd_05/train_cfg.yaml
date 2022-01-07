@@ -1,22 +1,22 @@
 net_config_path: "/home/andrew/Documents/study/thesis/thesis-src/experiments/networks/V0_2__1layer_network_with_softmax.yaml"
 optimizer_config:
   SGD:
-    lr: 0.001
+    lr: 0.05
     momentum: 0.9
 data_config:
   db_config:
     db: im2gps
     host: localhost
     port: 51998
-  train_ds: "/home/andrew/Documents/study/thesis/thesis-src/experiments/datasets/V2_0__Dataset_top70_descriptors/train_ds.json"
-  val_ds: "/home/andrew/Documents/study/thesis/thesis-src/experiments/datasets/V2_0__Dataset_top70_descriptors/val_ds.json"
-  batch_size: 64
+  train_ds: "/home/andrew/Documents/study/thesis/thesis-src/experiments/datasets/V3_0__Intersection_dataset/train_ds.json"
+  val_ds: "/home/andrew/Documents/study/thesis/thesis-src/experiments/datasets/V3_0__Intersection_dataset/val_ds.json"
+  batch_size: 32
   num_workers: 6
 properties:
-  base_dir: "/home/andrew/Documents/study/thesis/thesis-src/experiments/training/V1_0__train_v0_2_net_on_v2_0_ds"
+  base_dir: "/home/andrew/Documents/study/thesis/thesis-src/experiments/training/V1_2_train_v0_2_on_intersection_sgd_05"
   print_freq: 10
   sma_window: 10
-  num_epochs: 8
+  num_epochs: 6
   gpu_id: 0
   validate: true
   test: true

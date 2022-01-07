@@ -1,4 +1,4 @@
-net_config_path: "/home/andrew/Documents/study/thesis/thesis-src/experiments/networks/V0_2__1layer_network_with_softmax.yaml"
+net_config_path: "/home/andrew/Documents/study/thesis/thesis-src/experiments/networks/V1_2__2layer_network_with_softmax.yaml"
 optimizer_config:
   SGD:
     lr: 0.001
@@ -10,10 +10,10 @@ data_config:
     port: 51998
   train_ds: "/home/andrew/Documents/study/thesis/thesis-src/experiments/datasets/V2_0__Dataset_top70_descriptors/train_ds.json"
   val_ds: "/home/andrew/Documents/study/thesis/thesis-src/experiments/datasets/V2_0__Dataset_top70_descriptors/val_ds.json"
-  batch_size: 64
+  batch_size: 32
   num_workers: 6
 properties:
-  base_dir: "/home/andrew/Documents/study/thesis/thesis-src/experiments/training/V1_0__train_v0_2_net_on_v2_0_ds"
+  base_dir: "/home/andrew/Documents/study/thesis/thesis-src/experiments/training/V2_0__train_v1_2_on_top70"
   print_freq: 10
   sma_window: 10
   num_epochs: 8

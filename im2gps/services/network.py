@@ -108,7 +108,7 @@ class NetworkTrainService:
             if self.properties.summary_writer:
                 for threshold in dist_thresholds.keys():
                     self.summary_writer.add_scalar(f"Accuracy/test_{threshold}",
-                                                   results.accuracy[threshold], 0)
+                                                   results.accuracy[threshold], -1)
 
         for epoch in range(self.start_epoch, self.properties.num_epochs):
             log.info(f"Starting epoch number {epoch}")
@@ -139,6 +139,7 @@ class NetworkTrainService:
             if self.properties.summary_writer:
                 self.summary_writer.add_scalar("Loss/train", loss, epoch)
                 self.summary_writer.add_scalar("Accuracy/train", acc, epoch)
+                self.summary_writer.add_scalar("Parameter/sigma", self.net.kde.sigma.item(), epoch)
                 if self.scheduler is not None:
                     self.summary_writer.add_scalar("Parameters/lr", self.scheduler.get_last_lr(), epoch)
                 if validation_loss is not None:
@@ -177,15 +178,15 @@ class NetworkTrainService:
 
             self.optimizer.zero_grad()
 
-            q, neighbours, q_coords, n_coords, q_ids, n_ids = train_tuple
+            q, neighbours, g_truth_coords, n_coords, q_ids, n_ids = train_tuple
             q = q.cuda()
             neighbours = neighbours.cuda()
-            q_coords = q_coords.cuda()
+            g_truth_coords = g_truth_coords.cuda()
             coord_space = self.net.generate_grid(n_coords)
             coord_space = coord_space.cuda()
             n_coords = n_coords.cuda()
             out = self.net(query=q, neighbours=neighbours, n_coords=n_coords, coord_space=coord_space)
-            target = get_target_index(coord_space, q_coords)
+            target = get_target_index(coord_space, g_truth_coords)
             loss = self.criterion(out, target)
             accuracy_stat.current = accuracy(out, target)
             loss_stat.current = loss.item()
@@ -223,16 +224,16 @@ class NetworkTrainService:
         start_time = time.time()
         for i, val_tuple in enumerate(self.val_loader):
             data_stat.current = time.time() - start_time
-            q, neighbours, q_coords, n_coords, _, _ = val_tuple
+            q, neighbours, g_truth_coords, n_coords, _, _ = val_tuple
             coord_space = self.net.generate_grid(n_coords)
             coord_space = coord_space.cuda()
             q = q.cuda()
             neighbours = neighbours.cuda()
-            q_coords = q_coords.cuda()
+            g_truth_coords = g_truth_coords.cuda()
             n_coords = n_coords.cuda()
             with torch.no_grad():
                 out = self.net(query=q, neighbours=neighbours, n_coords=n_coords, coord_space=coord_space)
-                target = get_target_index(n_coords, q_coords)
+                target = get_target_index(n_coords, g_truth_coords)
                 accuracy_stat.current = accuracy(out, target)
                 loss = self.criterion(out, target)
 
@@ -600,10 +601,13 @@ class NetworkTestService:
         log.info("Building and fitting localisation model")
         if self.net.kde is not None:
             sigma = self.net.kde.sigma.item()
+            #sigma = 0.05
         else:
-            sigma = 0.001
+            sigma = 0.0025
         m = self.net.d2w.m.item()
-        model = LocalisationModel(LocalisationType.KDE, index, sigma=sigma, m=m, k=self.properties.k)
+        #m = 10
+        model = LocalisationModel(LocalisationType.KDE, index, sigma=sigma, m=m, k=self.properties.k,
+                                  num_workers=self.properties.num_workers)
         model.fit(ids_list, coords_list)
         del ids_list, coords_list
 

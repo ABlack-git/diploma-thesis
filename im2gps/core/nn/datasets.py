@@ -17,9 +17,15 @@ class TrainDataset(Dataset):
     def __getitem__(self, index) -> T_co:
         query_id = self.dataset[index]['query']
         neighbours_ids = self.dataset[index]['neighbours']
+        if 'target' in self.dataset[index]:
+            target_id = self.dataset[index]['target']
+            target_coords = MongoDescriptor.objects(photo_id=target_id).first().coordinates
+        else:
+            target_coords = None
+
         query_doc = MongoDescriptor.objects(photo_id=query_id).first()
         query = query_doc.descriptor
-        q_coords = query_doc.coordinates
+        ground_truth_coord = query_doc.coordinates
 
         neighbour_docs = MongoDescriptor.objects(photo_id__in=neighbours_ids)
         neighbours = []
@@ -30,11 +36,14 @@ class TrainDataset(Dataset):
 
         query = torch.tensor(query, dtype=torch.float32)
         neighbours = torch.tensor(neighbours, dtype=torch.float32)
-        q_coords = torch.tensor(q_coords, dtype=torch.float32)
+        if target_coords is None:
+            ground_truth_coord = torch.tensor(ground_truth_coord, dtype=torch.float32)
+        else:
+            ground_truth_coord = torch.tensor(target_coords, dtype=torch.float32)
         n_coords = torch.tensor(n_coords, dtype=torch.float32)
         query_id = torch.tensor(query_id)
         neighbours_ids = torch.tensor(neighbours_ids)
-        return query, neighbours, q_coords, n_coords, query_id, neighbours_ids
+        return query, neighbours, ground_truth_coord, n_coords, query_id, neighbours_ids
 
 
 class TestDataset(Dataset):

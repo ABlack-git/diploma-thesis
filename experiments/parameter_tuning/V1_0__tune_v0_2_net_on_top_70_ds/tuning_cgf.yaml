@@ -1,9 +1,12 @@
-base_dir: "/home/andrew/Documents/study/thesis/thesis-src/experiments/parameter_tuning/V4_0__Tune_v0_2_net_params"
+base_dir: "/home/andrew/Documents/study/thesis/thesis-src/experiments/parameter_tuning/V1_0__tune_v0_2_net_on_top_70_ds"
 optimizers:
   - SGD:
-      lr: [ 0.01, 0.05, 0.1, 0.5 ]
+      lr: [ 0.001, 0.005, 0.0075 ]
       momentum: [ 0.9 ]
-  - Adam:
-      lr: [ 0.0001, 0.001, 0.01, 0.1 ]
+#  - SGD:
+#      lr: [ 0.01, 0.05, 0.1, 0.5 ]
+#      momentum: [ 0.9 ]
+#  - Adam:
+#      lr: [ 0.00001, 0.00005,0.0001, 0.0005, 0.001, 0.01, 0.1 ]
 batch_size: [ 64 ]
 softmax_temperature: [ 150 ]

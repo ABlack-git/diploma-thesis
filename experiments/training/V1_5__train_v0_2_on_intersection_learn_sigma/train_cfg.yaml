@@ -1,0 +1,34 @@
+net_config_path: "/home/andrew/Documents/study/thesis/thesis-src/experiments/training/V1_5__train_v0_2_on_intersection_learn_sigma/V0_2__1layer_network_with_softmax.yaml"
+optimizer_config:
+  SGD:
+    lr: 0.05
+    momentum: 0.9
+data_config:
+  db_config:
+    db: im2gps
+    host: localhost
+    port: 51998
+  train_ds: "/home/andrew/Documents/study/thesis/thesis-src/experiments/datasets/V3_0__Intersection_dataset/train_ds.json"
+  val_ds: "/home/andrew/Documents/study/thesis/thesis-src/experiments/datasets/V3_0__Intersection_dataset/val_ds.json"
+  batch_size: 32
+  num_workers: 6
+properties:
+  base_dir: "/home/andrew/Documents/study/thesis/thesis-src/experiments/training/V1_5__train_v0_2_on_intersection_learn_sigma"
+  print_freq: 10
+  sma_window: 10
+  num_epochs: 6
+  gpu_id: 0
+  validate: true
+  test: true
+  save_checkpoint: true
+  summary_writer: true
+  test_freq: 2
+test_config:
+  batch_size: 512
+  dataset_file: "/home/andrew/Documents/study/thesis/thesis-src/resources/descriptor_ids.json"
+  test_dataset: "validation_query"
+  properties:
+    results_dir: ${properties.base_dir}/test_results
+    k: 70
+    print_freq: 10
+    num_workers: 6

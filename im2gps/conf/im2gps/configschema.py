@@ -80,8 +80,8 @@ class FiltersConfig:
 @dataclass
 class ModelConfig:
     localisation_type: str = MISSING
-    sigma: float = MISSING
-    m: float = MISSING
+    sigma: Optional[float] = MISSING
+    m: Optional[float] = MISSING
     k: int = MISSING
     num_workers: int = MISSING
 

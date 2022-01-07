@@ -1,7 +1,7 @@
-net_config_path: "/home/andrew/Documents/study/thesis/thesis-src/experiments/networks/V0_2__1layer_network_with_softmax.yaml"
+net_config_path: "/home/andrew/Documents/study/thesis/thesis-src/experiments/networks/V1_2__2layer_network_with_softmax.yaml"
 optimizer_config:
   SGD:
-    lr: 0.001
+    lr: 0.1
     momentum: 0.9
 data_config:
   db_config:
@@ -13,16 +13,16 @@ data_config:
   batch_size: 64
   num_workers: 6
 properties:
-  base_dir: "/home/andrew/Documents/study/thesis/thesis-src/experiments/training/V1_0__train_v0_2_net_on_v2_0_ds"
+  base_dir: "/home/andrew/Documents/study/thesis/thesis-src/experiments/parameter_tuning/V2_0__tune_v1_2_net_on_top70_ds"
   print_freq: 10
   sma_window: 10
-  num_epochs: 8
+  num_epochs: 3
   gpu_id: 0
   validate: true
   test: true
-  save_checkpoint: true
+  save_checkpoint: false
   summary_writer: true
-  test_freq: 2
+  test_freq: 1
 test_config:
   batch_size: 512
   dataset_file: "/home/andrew/Documents/study/thesis/thesis-src/resources/descriptor_ids.json"

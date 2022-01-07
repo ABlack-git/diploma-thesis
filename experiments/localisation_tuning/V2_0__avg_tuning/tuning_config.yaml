@@ -1,0 +1,20 @@
+grid:
+  k: [2,3,5,6,8,10, 20,40,70,90,100]
+query_dataset: 'validation_query'
+save_path: /home/andrew/Documents/study/thesis/thesis-src/experiments/localisation_tuning/V2_0__avg_tuning/tuning_results.json
+default_parameters:
+  localisation_type: avg
+  k: 10
+  m: null
+  sigma: null
+  num_workers: 6
+save_every: 10
+index_configs:
+  - index_dir: /home/andrew/Documents/study/thesis/indices/cos_512_index
+    index_type: "cosine"
+    gpu_enabled: false
+    gpu_id: -1
+  - index_dir: /home/andrew/Documents/study/thesis/indices/l2_512_index
+    index_type: "L2"
+    gpu_enabled: false
+    gpu_id: -1

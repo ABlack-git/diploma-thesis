@@ -1,17 +1,12 @@
 network:
   restore_from:
-  name: "V1.2 2 layer network with softmax"
+  name: "V0.2 1 layer network with softmax"
   transform_only: false
   transformation_layers:
     - Linear:
         in_features: 2048
         out_features: 2048
         bias: true
-    - ReLU:
-        inplace: true
-    - Linear:
-        in_features: 2048
-        out_features: 2048
     - L2NormalizationLayer:
 
   custom_layers:
@@ -20,7 +15,7 @@ network:
         trainable: false
         dist_type: l2_dist
     - KDE:
-        sigma: 0.001
+        sigma: 0.005
         trainable: false
     - Im2GPSSoftmax:
         temperature: 150

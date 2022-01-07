@@ -49,7 +49,6 @@ class Im2GPSNetwork(nn.Module):
                 self._record_data("softmax", net_out)
             else:
                 net_out = out
-
             return net_out
 
     def _record_data(self, key, value):
